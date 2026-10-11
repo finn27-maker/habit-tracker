@@ -61,7 +61,18 @@ export default defineConfig({
         'src/App.svelte',
         'src/vite-env.d.ts',
       ],
-      thresholds: { lines: 95, branches: 95, functions: 95, statements: 95 },
+      thresholds: {
+        // Overall bar. Branches are lower because Svelte's compiled templates contain
+        // generated "did this value change?" branches that behaviour can't reach.
+        lines: 95,
+        functions: 95,
+        statements: 95,
+        branches: 90,
+        // The logic that decides streaks, resets and storage stays fully covered.
+        'src/domain/**': { lines: 100, functions: 100, statements: 100, branches: 100 },
+        'src/data/**': { lines: 100, functions: 100, statements: 100, branches: 100 },
+        'src/platform/**': { lines: 100, functions: 100, statements: 100, branches: 100 },
+      },
     },
   },
 });

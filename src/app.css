@@ -6,6 +6,8 @@
   --text-secondary: #5c5c63;
   --accent: #0a64d8;
   --accent-soft: #dceafd;
+  --separator: #d8d8de;
+  --danger: #c4261b;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   font-size: 100%;
   line-height: 1.4;
@@ -20,6 +22,8 @@
     --text-secondary: #aeaeb4;
     --accent: #4c9bff;
     --accent-soft: #10284a;
+    --separator: #38383a;
+    --danger: #ff7b72;
   }
 }
 
@@ -39,7 +43,7 @@ main {
   max-width: 600px;
   margin: 0 auto;
   padding: calc(env(safe-area-inset-top) + 1rem) calc(env(safe-area-inset-right) + 1rem)
-    calc(env(safe-area-inset-bottom) + 6rem) calc(env(safe-area-inset-left) + 1rem);
+    calc(env(safe-area-inset-bottom) + 8rem) calc(env(safe-area-inset-left) + 1rem);
 }
 
 :focus-visible {

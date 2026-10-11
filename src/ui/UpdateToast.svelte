@@ -28,9 +28,10 @@
 <style>
   .toast {
     position: fixed;
+    z-index: 10;
     left: 1rem;
     right: 1rem;
-    bottom: calc(1rem + env(safe-area-inset-bottom));
+    bottom: calc(4.75rem + env(safe-area-inset-bottom));
     display: flex;
     align-items: center;
     gap: 0.5rem;

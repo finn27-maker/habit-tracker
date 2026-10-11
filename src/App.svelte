@@ -1,9 +1,14 @@
 <script lang="ts">
   import { writable } from 'svelte/store';
   import { registerSW } from 'virtual:pwa-register';
+  import { createDb } from './data/db';
+  import { createListsRepo } from './data/lists-repo';
   import { isStandalone } from './platform/install';
   import { whenOnline } from './platform/online';
   import InstallBanner from './ui/InstallBanner.svelte';
+  import Lists from './ui/Lists.svelte';
+  import { routeFromHash } from './ui/route';
+  import TabBar from './ui/TabBar.svelte';
   import Today from './ui/Today.svelte';
   import UpdateToast from './ui/UpdateToast.svelte';
 
@@ -26,12 +31,23 @@
     navigatorStandalone: (navigator as Navigator & { standalone?: boolean }).standalone,
     matchMedia: (q) => window.matchMedia(q),
   });
+
+  const listsRepo = createListsRepo(createDb());
+  let route = $state(routeFromHash(location.hash));
 </script>
+
+<svelte:window onhashchange={() => (route = routeFromHash(location.hash))} />
 
 <main>
   <InstallBanner {standalone} />
-  <Today now={new Date()} />
+  {#if route === 'lists'}
+    <Lists repo={listsRepo} />
+  {:else}
+    <Today now={new Date()} />
+  {/if}
 </main>
+
+<TabBar current={route} />
 
 <UpdateToast
   needRefresh={$needRefresh}
