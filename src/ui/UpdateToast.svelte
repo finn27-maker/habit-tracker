@@ -1,9 +1,15 @@
 <script lang="ts">
   let {
     needRefresh,
+    offlineReady,
     onReload,
     onDismiss,
-  }: { needRefresh: boolean; onReload: () => void; onDismiss: () => void } = $props();
+  }: {
+    needRefresh: boolean;
+    offlineReady: boolean;
+    onReload: () => void;
+    onDismiss: () => void;
+  } = $props();
 </script>
 
 {#if needRefresh}
@@ -11,6 +17,11 @@
     <span>New version available</span>
     <button type="button" class="secondary" onclick={onDismiss}>Not now</button>
     <button type="button" onclick={onReload}>Reload</button>
+  </div>
+{:else if offlineReady}
+  <div class="toast" role="status">
+    <span>✓ Ready to work offline</span>
+    <button type="button" onclick={onDismiss}>OK</button>
   </div>
 {/if}
 

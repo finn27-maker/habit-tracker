@@ -5,7 +5,9 @@
   import Today from './ui/Today.svelte';
   import UpdateToast from './ui/UpdateToast.svelte';
 
-  const { needRefresh, updateServiceWorker } = useRegisterSW();
+  // Register right away rather than on window load: iOS discards a half-finished
+  // precache if the Home Screen app is closed before it completes.
+  const { needRefresh, offlineReady, updateServiceWorker } = useRegisterSW({ immediate: true });
 
   const standalone = isStandalone({
     navigatorStandalone: (navigator as Navigator & { standalone?: boolean }).standalone,
@@ -20,6 +22,10 @@
 
 <UpdateToast
   needRefresh={$needRefresh}
+  offlineReady={$offlineReady}
   onReload={() => updateServiceWorker(true)}
-  onDismiss={() => needRefresh.set(false)}
+  onDismiss={() => {
+    needRefresh.set(false);
+    offlineReady.set(false);
+  }}
 />

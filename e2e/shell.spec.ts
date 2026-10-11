@@ -60,13 +60,10 @@ test('the page runs no inline scripts and only loads same-origin resources', asy
   expect([...origins]).toEqual(['http://localhost:4173']);
 });
 
-test('works offline after the first visit', async ({ page, context, browserName }) => {
+test('confirms offline readiness, then works offline', async ({ page, context, browserName }) => {
   test.skip(browserName !== 'chromium', 'Service workers are only drivable in Chromium');
   await page.goto('./');
-  await page.evaluate(async () => {
-    await navigator.serviceWorker.ready;
-  });
-  await page.reload(); // let the service worker take control of the page
+  await expect(page.getByRole('status')).toHaveText(/Ready to work offline/);
   await context.setOffline(true);
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
