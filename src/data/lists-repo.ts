@@ -8,9 +8,10 @@ import {
 } from '../domain/lists';
 import { err, ok, type Result } from '../domain/result';
 import type { HabitDb, ListRecord } from './db';
+import { SAVE_ERROR, guard } from './errors';
 import { newId as defaultNewId } from './ids';
 
-export const SAVE_ERROR = "Couldn't save. Your phone may be out of storage.";
+export { SAVE_ERROR };
 export const LOAD_ERROR = "Couldn't load your lists. Close and reopen the app.";
 const NOT_FOUND = 'List not found';
 const STARTERS_SEEDED = 'startersSeeded';
@@ -33,15 +34,6 @@ export interface ListsRepo {
 }
 
 const toList = (record: ListRecord): List => ({ ...record, color: record.color as ListColor });
-
-/** IndexedDB can fail on iOS (e.g. "Connection to Indexed Database server lost"); never throw. */
-async function guard<T>(failure: string, run: () => Promise<Result<T>>): Promise<Result<T>> {
-  try {
-    return await run();
-  } catch {
-    return err(failure);
-  }
-}
 
 export function createListsRepo(db: HabitDb, deps: ListsRepoDeps = {}): ListsRepo {
   const newId = deps.newId ?? defaultNewId;

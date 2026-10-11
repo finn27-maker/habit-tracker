@@ -2,7 +2,9 @@
   import { writable } from 'svelte/store';
   import { registerSW } from 'virtual:pwa-register';
   import { createDb } from './data/db';
+  import { createItemsRepo } from './data/items-repo';
   import { createListsRepo } from './data/lists-repo';
+  import { createClock } from './platform/clock';
   import { isStandalone } from './platform/install';
   import { whenOnline } from './platform/online';
   import InstallBanner from './ui/InstallBanner.svelte';
@@ -32,7 +34,33 @@
     matchMedia: (q) => window.matchMedia(q),
   });
 
-  const listsRepo = createListsRepo(createDb());
+  const db = createDb();
+  const listsRepo = createListsRepo(db);
+  const itemsRepo = createItemsRepo(db);
+
+  // iOS may suspend the app across midnight with no reliable resume event, so "today"
+  // is rechecked on every signal we can get plus a 30-second safety interval.
+  const clock = createClock({
+    now: () => new Date(),
+    setTimeout: (fn, ms) => window.setTimeout(fn, ms),
+    clearTimeout: (id) => window.clearTimeout(id as number),
+    setInterval: (fn, ms) => window.setInterval(fn, ms),
+    clearInterval: (id) => window.clearInterval(id as number),
+    onResume: (fn) => {
+      const onVisible = () => {
+        if (document.visibilityState === 'visible') fn();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      window.addEventListener('pageshow', fn);
+      window.addEventListener('focus', fn);
+      return () => {
+        document.removeEventListener('visibilitychange', onVisible);
+        window.removeEventListener('pageshow', fn);
+        window.removeEventListener('focus', fn);
+      };
+    },
+  });
+
   let route = $state(routeFromHash(location.hash));
 </script>
 
@@ -43,7 +71,7 @@
   {#if route === 'lists'}
     <Lists repo={listsRepo} />
   {:else}
-    <Today now={new Date()} />
+    <Today {listsRepo} {itemsRepo} {clock} />
   {/if}
 </main>
 

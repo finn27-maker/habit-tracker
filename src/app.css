@@ -46,6 +46,62 @@ main {
     calc(env(safe-area-inset-bottom) + 8rem) calc(env(safe-area-inset-left) + 1rem);
 }
 
+/* Form controls inside a Sheet (the sheet's content is rendered by each form). */
+.sheet label,
+.sheet legend {
+  display: block;
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.sheet input[type='text'],
+.sheet select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--separator);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+}
+.sheet .hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+.sheet fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.sheet .error {
+  margin: 0.75rem 0 0;
+  color: var(--danger);
+  font-weight: 600;
+}
+.sheet .buttons {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+.sheet .buttons button {
+  flex: 1;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+.sheet .buttons .secondary {
+  background: var(--bg);
+  color: var(--text);
+}
+
 :focus-visible {
   outline: 3px solid var(--accent);
   outline-offset: 2px;

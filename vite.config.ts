@@ -48,6 +48,7 @@ export default defineConfig({
   resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
   test: {
     environment: 'jsdom',
+    globalSetup: ['./vitest.global-setup.ts'],
     include: ['src/**/*.test.ts'],
     setupFiles: ['src/test-setup.ts'],
     coverage: {
