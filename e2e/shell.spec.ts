@@ -60,11 +60,21 @@ test('the page runs no inline scripts and only loads same-origin resources', asy
   expect([...origins]).toEqual(['http://localhost:4173']);
 });
 
-test('confirms offline readiness, then works offline', async ({ page, context, browserName }) => {
+test('confirms offline readiness, then works offline without an update check', async ({
+  page,
+  context,
+  browserName,
+}) => {
   test.skip(browserName !== 'chromium', 'Service workers are only drivable in Chromium');
   await page.goto('./');
   await expect(page.getByRole('status')).toHaveText(/Ready to work offline/);
+
   await context.setOffline(true);
+  const swRequests: string[] = [];
+  page.on('request', (req) => {
+    if (req.url().endsWith('/sw.js')) swRequests.push(req.url());
+  });
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+  expect(swRequests).toEqual([]);
 });
