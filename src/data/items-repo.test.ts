@@ -6,12 +6,16 @@ import { SAVE_ERROR, createListsRepo } from './lists-repo';
 
 let dbCounter = 0;
 
-async function setup() {
+/** Wednesday 2026-10-14, in the week that started on Sunday 2026-10-11. */
+const NOW = new Date(2026, 9, 14, 9, 0).getTime();
+const DAY = 24 * 60 * 60 * 1000;
+
+async function setup(now: () => number = () => NOW) {
   const db = createDb(`items-repo-${++dbCounter}`);
   let l = 0;
   let i = 0;
   const lists = createListsRepo(db, { newId: () => `list-${++l}` });
-  const items = createItemsRepo(db, { newId: () => `item-${++i}`, now: () => 7_000 });
+  const items = createItemsRepo(db, { newId: () => `item-${++i}`, now });
   await lists.ensureStarterLists(); // list-1 Fitness, list-2 Work, list-3 Side Business, list-4 Personal
   return { db, lists, items };
 }
@@ -91,7 +95,7 @@ describe('toggleDay', () => {
 
     expect(await items.toggleDay('item-1', '2026-10-14')).toEqual({ ok: true, value: true });
     expect(await db.completions.toArray()).toEqual([
-      { id: 'item-2', itemId: 'item-1', dayKey: '2026-10-14', createdAt: 7_000 },
+      { id: 'item-2', itemId: 'item-1', dayKey: '2026-10-14', createdAt: NOW },
     ]);
 
     expect(await items.toggleDay('item-1', '2026-10-14')).toEqual({ ok: true, value: false });
@@ -162,6 +166,272 @@ describe('completionDays', () => {
   });
 });
 
+const peloton = { title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 };
+
+describe('weekly goals: create', () => {
+  it('records the target from the Sunday that starts the current week', async () => {
+    const { items, db } = await setup();
+    expect(await items.create(peloton)).toEqual({
+      ok: true,
+      value: { id: 'item-1', listId: 'list-1', type: 'weekly', title: 'Peloton ride', order: 0 },
+    });
+    expect(await db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-1', effectiveWeekStart: '2026-10-11', target: 3 },
+    ]);
+  });
+
+  it('rejects a bad target without writing anything', async () => {
+    const { items, db } = await setup();
+    expect(await items.create({ ...peloton, target: 15 })).toEqual({
+      ok: false,
+      error: 'Pick 1 to 14 times a week',
+    });
+    expect(await db.items.count()).toBe(0);
+    expect(await db.targetHistory.count()).toBe(0);
+  });
+
+  it('records no target for a daily habit', async () => {
+    const { items, db } = await setup();
+    await items.create({ ...meditate, target: 5 });
+    expect(await db.targetHistory.count()).toBe(0);
+  });
+});
+
+describe('addCompletion', () => {
+  it('adds one completion per call, several on the same day', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    expect(await items.addCompletion('item-1', '2026-10-14')).toEqual({ ok: true, value: undefined });
+    expect(await items.addCompletion('item-1', '2026-10-14')).toEqual({ ok: true, value: undefined });
+    expect((await db.completions.toArray()).map((c) => [c.itemId, c.dayKey])).toEqual([
+      ['item-1', '2026-10-14'],
+      ['item-1', '2026-10-14'],
+    ]);
+  });
+
+  it('refuses unknown, archived and non-weekly items and invalid days', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await items.create(meditate);
+    await items.create({ ...peloton, title: 'Old goal' });
+    await db.items.update('item-3', { archivedAt: 1 });
+
+    expect(await items.addCompletion('nope', '2026-10-14')).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+    expect(await items.addCompletion('item-3', '2026-10-14')).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+    expect(await items.addCompletion('item-2', '2026-10-14')).toEqual({
+      ok: false,
+      error: 'Not a weekly goal',
+    });
+    expect(await items.addCompletion('item-1', '2026-13-01')).toEqual({
+      ok: false,
+      error: 'Invalid day',
+    });
+    expect(await db.completions.count()).toBe(0);
+  });
+});
+
+describe('removeLatestCompletion', () => {
+  const weekStart = '2026-10-11';
+
+  it('removes the entry on the latest day of the week and nothing else', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await db.completions.bulkAdd([
+      { id: 'c-prev', itemId: 'item-1', dayKey: '2026-10-10', createdAt: 1 },
+      { id: 'c-mon', itemId: 'item-1', dayKey: '2026-10-12', createdAt: 2 },
+      { id: 'c-wed', itemId: 'item-1', dayKey: '2026-10-14', createdAt: 3 },
+    ]);
+
+    expect(await items.removeLatestCompletion('item-1', weekStart)).toEqual({
+      ok: true,
+      value: true,
+    });
+    expect((await db.completions.toArray()).map((c) => c.id).sort()).toEqual(['c-mon', 'c-prev']);
+  });
+
+  it('removes the one logged last when several share the day', async () => {
+    let clock = NOW;
+    const { items, db } = await setup(() => clock);
+    await items.create(peloton);
+    await items.addCompletion('item-1', '2026-10-14'); // item-2, earlier
+    clock += 5_000;
+    await items.addCompletion('item-1', '2026-10-14'); // item-3, later
+
+    await items.removeLatestCompletion('item-1', weekStart);
+    expect((await db.completions.toArray()).map((c) => c.id)).toEqual(['item-2']);
+  });
+
+  it('breaks a tie in the logged time by taking the later id', async () => {
+    const { items, db } = await setup(); // the clock never moves, so createdAt ties
+    await items.create(peloton);
+    await items.addCompletion('item-1', '2026-10-14');
+    await items.addCompletion('item-1', '2026-10-14');
+
+    await items.removeLatestCompletion('item-1', weekStart);
+    expect((await db.completions.toArray()).map((c) => c.id)).toEqual(['item-2']);
+  });
+
+  it('reports that nothing was removed when the week is empty', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await db.completions.add({ id: 'c-prev', itemId: 'item-1', dayKey: '2026-10-10', createdAt: 1 });
+    expect(await items.removeLatestCompletion('item-1', weekStart)).toEqual({
+      ok: true,
+      value: false,
+    });
+    expect(await db.completions.count()).toBe(1);
+  });
+
+  it('refuses unknown or archived items and an invalid week start', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    expect(await items.removeLatestCompletion('nope', weekStart)).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+    expect(await items.removeLatestCompletion('item-1', 'last sunday')).toEqual({
+      ok: false,
+      error: 'Invalid day',
+    });
+    await db.items.update('item-1', { archivedAt: 1 });
+    expect(await items.removeLatestCompletion('item-1', weekStart)).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+  });
+});
+
+describe('update', () => {
+  it('renames a habit and moves it to the end of another list', async () => {
+    const { items } = await setup();
+    await items.create({ ...meditate, title: 'A', listId: 'list-1' });
+    await items.create({ ...meditate, title: 'B', listId: 'list-4' });
+
+    expect(await items.update('item-1', { title: '  Stretch ', listId: 'list-4' })).toEqual({
+      ok: true,
+      value: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Stretch', order: 1 },
+    });
+  });
+
+  it('keeps the place in the list when only the name changes', async () => {
+    const { items } = await setup();
+    await items.create({ ...meditate, title: 'A' });
+    await items.create({ ...meditate, title: 'B' });
+    const updated = await items.update('item-2', { title: 'B2', listId: 'list-4' });
+    expect(updated.ok && updated.value.order).toBe(1);
+  });
+
+  it('changes a weekly target from the current week and overwrites it within that week', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+
+    await items.update('item-1', { title: 'Peloton ride', listId: 'list-1', target: 4 });
+    await items.update('item-1', { title: 'Peloton ride', listId: 'list-1', target: 5 });
+
+    expect(await db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-1', effectiveWeekStart: '2026-10-11', target: 5 },
+    ]);
+  });
+
+  it('adds a new record when the target changes in a later week, and keeps the old one', async () => {
+    let clock = NOW;
+    const { items, db } = await setup(() => clock);
+    await items.create(peloton);
+
+    clock += 7 * DAY;
+    await items.update('item-1', { title: 'Peloton ride', listId: 'list-1', target: 4 });
+
+    expect((await db.targetHistory.toArray()).map((t) => [t.effectiveWeekStart, t.target]).sort()).toEqual([
+      ['2026-10-11', 3],
+      ['2026-10-18', 4],
+    ]);
+  });
+
+  it('writes no target record when the target is unchanged', async () => {
+    let clock = NOW;
+    const { items, db } = await setup(() => clock);
+    await items.create(peloton);
+
+    clock += 7 * DAY;
+    await items.update('item-1', { title: 'Spin class', listId: 'list-1', target: 3 });
+
+    expect(await db.targetHistory.count()).toBe(1);
+    expect((await db.items.get('item-1'))?.title).toBe('Spin class');
+  });
+
+  it('updates a daily habit without any target', async () => {
+    const { items, db } = await setup();
+    await items.create(meditate);
+    const updated = await items.update('item-1', { title: 'Meditate 10 min', listId: 'list-4' });
+    expect(updated.ok && updated.value.title).toBe('Meditate 10 min');
+    expect(await db.targetHistory.count()).toBe(0);
+  });
+
+  it('rejects invalid input and missing things without changing anything', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await items.create({ ...peloton, title: 'Archived goal' });
+    await db.items.update('item-2', { archivedAt: 1 });
+    const before = await db.items.get('item-1');
+
+    expect(await items.update('item-1', { title: ' ', listId: 'list-1', target: 3 })).toEqual({
+      ok: false,
+      error: "Name can't be empty",
+    });
+    expect(await items.update('item-1', { title: 'X', listId: 'list-1', target: 0 })).toEqual({
+      ok: false,
+      error: 'Pick 1 to 14 times a week',
+    });
+    expect(await items.update('item-1', { title: 'X', listId: 'gone', target: 3 })).toEqual({
+      ok: false,
+      error: 'List not found',
+    });
+    expect(await items.update('nope', { title: 'X', listId: 'list-1', target: 3 })).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+    expect(await items.update('item-2', { title: 'X', listId: 'list-1', target: 3 })).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+    expect(await db.items.get('item-1')).toEqual(before);
+  });
+});
+
+describe('listTargets', () => {
+  it('groups target records by goal', async () => {
+    let clock = NOW;
+    const { items } = await setup(() => clock);
+    await items.create(peloton);
+    await items.create({ ...peloton, title: 'Read', listId: 'list-4', target: 5 });
+    clock += 7 * DAY;
+    await items.update('item-1', { title: 'Peloton ride', listId: 'list-1', target: 4 });
+
+    const result = await items.listTargets();
+    expect(result.ok && Object.keys(result.value).sort()).toEqual(['item-1', 'item-2']);
+    expect(
+      result.ok && result.value['item-1']!.map((t) => [t.effectiveWeekStart, t.target]).sort(),
+    ).toEqual([
+      ['2026-10-11', 3],
+      ['2026-10-18', 4],
+    ]);
+    expect(result.ok && result.value['item-2']).toEqual([
+      { effectiveWeekStart: '2026-10-11', target: 5 },
+    ]);
+  });
+
+  it('is empty when there are no weekly goals', async () => {
+    const { items } = await setup();
+    expect(await items.listTargets()).toEqual({ ok: true, value: {} });
+  });
+});
+
 describe('storage failures', () => {
   it('return a failed Result instead of throwing', async () => {
     const { items, db } = await setup();
@@ -170,8 +440,21 @@ describe('storage failures', () => {
 
     expect(await items.create(meditate)).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.toggleDay('item-1', '2026-10-14')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.addCompletion('item-1', '2026-10-14')).toEqual({
+      ok: false,
+      error: SAVE_ERROR,
+    });
+    expect(await items.removeLatestCompletion('item-1', '2026-10-11')).toEqual({
+      ok: false,
+      error: SAVE_ERROR,
+    });
+    expect(await items.update('item-1', { title: 'X', listId: 'list-1' })).toEqual({
+      ok: false,
+      error: SAVE_ERROR,
+    });
     expect(await items.listActive()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.completionDays()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
+    expect(await items.listTargets()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
   });
 });
 

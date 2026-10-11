@@ -1,7 +1,7 @@
 <script lang="ts">
-  import type { TodayRow } from '../domain/today';
+  import type { DailyRow } from '../domain/today';
 
-  let { row, onToggle }: { row: TodayRow; onToggle: () => void } = $props();
+  let { row, onToggle }: { row: DailyRow; onToggle: () => void } = $props();
 
   const streakLabel = $derived(`${row.streak} day streak${row.atRisk ? ', not done today' : ''}`);
 </script>

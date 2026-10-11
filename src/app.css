@@ -8,6 +8,7 @@
   --accent-soft: #dceafd;
   --separator: #d8d8de;
   --danger: #c4261b;
+  --success: #1f8a3b;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   font-size: 100%;
   line-height: 1.4;
@@ -24,6 +25,7 @@
     --accent-soft: #10284a;
     --separator: #38383a;
     --danger: #ff7b72;
+    --success: #34c759;
   }
 }
 

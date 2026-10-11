@@ -29,6 +29,22 @@ export function dayNumber(key: string): number {
   return Date.UTC(year!, month! - 1, day!) / 86_400_000;
 }
 
+/**
+ * Weeks run Sunday to Saturday. 1970-01-01 was a Thursday, so with day number 0 on that
+ * Thursday, the weekday is (dayNumber + 4) mod 7 (0 = Sunday) and the week number is
+ * floor((dayNumber + 4) / 7). Integer maths, so daylight saving (which always changes on
+ * a Sunday) cannot move a day into the wrong week.
+ */
+export function weekNumber(key: string): number {
+  return Math.floor((dayNumber(key) + 4) / 7);
+}
+
+/** The Sunday that starts the week containing `key`. */
+export function weekStartKey(key: string): string {
+  const weekday = (((dayNumber(key) + 4) % 7) + 7) % 7;
+  return addDaysToKey(key, -weekday);
+}
+
 export function isDayKey(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && dayKey(parseDayKey(value)) === value;
 }

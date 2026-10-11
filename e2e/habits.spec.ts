@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { completionCount } from './helpers';
 
 test.use({ timezoneId: 'America/Chicago' });
 
@@ -22,6 +23,7 @@ test('add a habit, check it off, and it stays checked after a reload', async ({ 
   await box.click();
   await expect(box).toHaveAttribute('aria-checked', 'true');
   await expect(page.getByRole('img', { name: '1 day streak' })).toHaveText('🔥 1');
+  await expect.poll(() => completionCount(page)).toBe(1);
 
   await page.reload();
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute(
@@ -41,6 +43,7 @@ test('tapping a checked habit again un-checks it', async ({ page }) => {
   await box.click();
   await expect(box).toHaveAttribute('aria-checked', 'false');
   await expect(page.getByRole('img', { name: /streak/ })).toHaveCount(0);
+  await expect.poll(() => completionCount(page)).toBe(0);
 
   await page.reload();
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute(

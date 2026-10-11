@@ -16,7 +16,8 @@ function setup(start = new Date(2026, 9, 14, 9, 0)) {
   let l = 0;
   let i = 0;
   const listsRepo = createListsRepo(db, { newId: () => `list-${++l}`, now: () => 1_000 });
-  const itemsRepo = createItemsRepo(db, { newId: () => `item-${++i}`, now: () => 2_000 });
+  // Weekly goals record their first target in the week of this clock's "now".
+  const itemsRepo = createItemsRepo(db, { newId: () => `item-${++i}`, now: () => start.getTime() });
 
   let current = start;
   let onNewDay: ((now: Date) => void) | null = null;
@@ -89,7 +90,7 @@ describe('Today screen', () => {
 
     await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
     const dialog = screen.getByRole('dialog', { name: 'New habit' });
-    expect(within(dialog).getByText('Repeats every day.')).toBeInTheDocument();
+    expect(within(dialog).getByLabelText('Repeats')).toHaveValue('daily');
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Meditate' } });
     await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-4' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -393,5 +394,400 @@ describe('Today screen', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent(ITEMS_LOAD_ERROR);
     expect(screen.queryByRole('checkbox', { name: 'Meditate' })).toBeNull();
+  });
+
+  it('reports a failure to load the target history when only that part fails', async () => {
+    const ctx = setup();
+    await ctx.listsRepo.ensureStarterLists();
+    await ctx.itemsRepo.create({ title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 });
+    const itemsRepo = {
+      ...ctx.itemsRepo,
+      listTargets: async () => ({ ok: false as const, error: ITEMS_LOAD_ERROR }),
+    };
+    render(Today, { props: { listsRepo: ctx.listsRepo, itemsRepo, clock: ctx.clock } });
+
+    expect(await screen.findByRole('status')).toHaveTextContent(ITEMS_LOAD_ERROR);
+    expect(screen.queryByRole('button', { name: /^Log Peloton ride/ })).toBeNull();
+  });
+});
+
+describe('weekly goals on Today', () => {
+  const ringName = (title: string, count: number, target: number, met = false) =>
+    `Log ${title}, ${count} of ${target} this week${met ? ', goal met' : ''}`;
+  const ring = (title: string, count: number, target: number, met = false) =>
+    screen.findByRole('button', { name: ringName(title, count, target, met) });
+  const saturdayNight = new Date(2026, 9, 17, 23, 59, 50);
+  const sundayMorning = new Date(2026, 9, 18, 0, 0, 5);
+
+  async function seedGoal(ctx: Ctx, title = 'Peloton ride', target = 3, listId = 'list-1') {
+    await ctx.listsRepo.ensureStarterLists();
+    await ctx.itemsRepo.create({ title, listId, type: 'weekly', target });
+  }
+
+  async function addLogs(ctx: Ctx, itemId: string, days: string[]) {
+    await ctx.db.completions.bulkAdd(
+      days.map((dayKey, index) => ({
+        id: `log-${dayKey}-${index}`,
+        itemId,
+        dayKey,
+        createdAt: index + 1,
+      })),
+    );
+  }
+
+  async function openNewWeekly(name: string) {
+    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });
+    await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: 'weekly' } });
+  }
+
+  it('offers a Repeats choice that reveals the times-per-week target', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+
+    expect(screen.getByLabelText('Repeats')).toHaveValue('daily');
+    expect(screen.queryByLabelText('Times per week')).toBeNull();
+
+    await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: 'weekly' } });
+    const target = screen.getByLabelText('Times per week');
+    expect(target).toHaveValue('3');
+    expect(within(target).getAllByRole('option').map((o) => o.textContent)).toEqual(
+      Array.from({ length: 14 }, (_, i) => String(i + 1)),
+    );
+  });
+
+  it('adds a weekly goal under its list with its target recorded from this week', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+
+    await openNewWeekly('Peloton ride');
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await ring('Peloton ride', 0, 3)).toHaveTextContent('0/3');
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('Fitness');
+    expect(screen.queryByRole('button', { name: /Remove last/ })).toBeNull();
+    expect(screen.queryByRole('img', { name: /streak/ })).toBeNull();
+    expect(await ctx.db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-1', effectiveWeekStart: '2026-10-11', target: 3 },
+    ]);
+  });
+
+  it('keeps the sheet open with a message when a weekly goal has no name', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+
+    await openNewWeekly('   ');
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Name can't be empty");
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('shows weekly goals beside daily habits in their saved order', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Stretch');
+    await ctx.itemsRepo.create({ title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 });
+    renderToday(ctx);
+    await ring('Peloton ride', 0, 3);
+
+    const rows = screen.getAllByRole('listitem');
+    expect(within(rows[0]!).getByRole('checkbox', { name: 'Stretch' })).toBeInTheDocument();
+    expect(within(rows[1]!).getByRole('button', { name: /^Log Peloton ride/ })).toBeInTheDocument();
+  });
+
+  it('logs one completion per tap, reaches the goal, and keeps counting past it', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+
+    await fireEvent.click(await ring('Peloton ride', 0, 3));
+    expect(await ring('Peloton ride', 1, 3)).toHaveTextContent('1/3');
+    await fireEvent.click(await ring('Peloton ride', 1, 3));
+    await fireEvent.click(await ring('Peloton ride', 2, 3));
+    expect(await ring('Peloton ride', 3, 3, true)).toHaveTextContent('3/3');
+    await fireEvent.click(await ring('Peloton ride', 3, 3, true));
+    expect(await ring('Peloton ride', 4, 3, true)).toHaveTextContent('4/3');
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await waitFor(async () => expect(await ctx.db.completions.count()).toBe(4));
+    expect((await ctx.db.completions.toArray()).every((c) => c.dayKey === '2026-10-14')).toBe(true);
+  });
+
+  it('counts two quick taps as two completions, not a toggle', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    const button = await ring('Peloton ride', 0, 3);
+
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(async () => expect(await ctx.db.completions.count()).toBe(2));
+    await ring('Peloton ride', 2, 3);
+  });
+
+  it('removes the most recent log with the minus button, which disappears at zero', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-12', '2026-10-14']);
+    renderToday(ctx);
+    await ring('Peloton ride', 2, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove last Peloton ride log' }));
+    await ring('Peloton ride', 1, 3);
+    await waitFor(async () =>
+      expect((await ctx.db.completions.toArray()).map((c) => c.dayKey)).toEqual(['2026-10-12']),
+    );
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove last Peloton ride log' }));
+    await ring('Peloton ride', 0, 3);
+    expect(screen.queryByRole('button', { name: /Remove last/ })).toBeNull();
+    await waitFor(async () => expect(await ctx.db.completions.count()).toBe(0));
+  });
+
+  it('remembers logs after the app is reopened', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    const first = renderToday(ctx);
+    await fireEvent.click(await ring('Peloton ride', 0, 3));
+    await fireEvent.click(await ring('Peloton ride', 1, 3));
+    await waitFor(async () => expect(await ctx.db.completions.count()).toBe(2));
+
+    first.unmount();
+    renderToday(ctx);
+    expect(await ring('Peloton ride', 2, 3)).toHaveTextContent('2/3');
+  });
+
+  it('shows the weekly streak dimmed until this week is met, then extends it', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    await ctx.db.targetHistory.put({ itemId: 'item-1', effectiveWeekStart: '2026-09-20', target: 3 });
+    await addLogs(ctx, 'item-1', [
+      '2026-09-20', '2026-09-21', '2026-09-22',
+      '2026-09-27', '2026-09-28', '2026-09-29',
+      '2026-10-04', '2026-10-05', '2026-10-06',
+      '2026-10-11',
+    ]);
+    renderToday(ctx);
+
+    const risky = await screen.findByRole('img', { name: '3 week streak, not met yet this week' });
+    expect(risky).toHaveTextContent('🔥 3');
+    expect(risky.classList.contains('risk')).toBe(true);
+
+    await fireEvent.click(await ring('Peloton ride', 1, 3));
+    await fireEvent.click(await ring('Peloton ride', 2, 3));
+    const extended = await screen.findByRole('img', { name: '4 week streak' });
+    expect(extended.classList.contains('risk')).toBe(false);
+  });
+
+  it('resets the ring by itself when the app stays open across Saturday midnight', async () => {
+    const ctx = setup(saturdayNight);
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-11', '2026-10-12', '2026-10-13']);
+    renderToday(ctx);
+    await ring('Peloton ride', 3, 3, true);
+
+    ctx.rollTo(sundayMorning);
+
+    expect(await ring('Peloton ride', 0, 3)).toHaveTextContent('0/3');
+    expect(screen.getByText('Sunday, October 18')).toBeInTheDocument();
+    expect(
+      screen.getByRole('img', { name: '1 week streak, not met yet this week' }),
+    ).toBeInTheDocument();
+  });
+
+  it('counts a tap on a stale screen just after Saturday midnight for the new week', async () => {
+    const ctx = setup(saturdayNight);
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-11', '2026-10-12', '2026-10-13']);
+    renderToday(ctx);
+    const button = await ring('Peloton ride', 3, 3, true);
+
+    ctx.setNow(sundayMorning); // the week changed; no rollover signal yet
+    await fireEvent.click(button);
+
+    await ring('Peloton ride', 1, 3);
+    await waitFor(async () =>
+      expect((await ctx.db.completions.toArray()).map((c) => c.dayKey).sort().at(-1)).toBe(
+        '2026-10-18',
+      ),
+    );
+    expect(screen.getByText('Sunday, October 18')).toBeInTheDocument();
+  });
+
+  it('leaves the old week alone when minus is tapped on a screen that is a week behind', async () => {
+    const ctx = setup(saturdayNight);
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-11', '2026-10-12', '2026-10-13']);
+    renderToday(ctx);
+    const minus = await screen.findByRole('button', { name: 'Remove last Peloton ride log' });
+
+    ctx.setNow(sundayMorning);
+    await fireEvent.click(minus);
+
+    await ring('Peloton ride', 0, 3);
+    expect(await ctx.db.completions.count()).toBe(3);
+  });
+
+  it('opens an edit sheet from the name without logging anything', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    await ring('Peloton ride', 0, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'Edit weekly goal' });
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Peloton ride');
+    expect(within(dialog).getByLabelText('List')).toHaveValue('list-1');
+    expect(within(dialog).getByLabelText('Times per week')).toHaveValue('3');
+    expect(within(dialog).queryByLabelText('Repeats')).toBeNull();
+    expect(await ctx.db.completions.count()).toBe(0);
+  });
+
+  it('saves a new target and shows it in the ring', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    await ring('Peloton ride', 0, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await fireEvent.change(screen.getByLabelText('Times per week'), { target: { value: '4' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await ring('Peloton ride', 0, 4)).toHaveTextContent('0/4');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(await ctx.db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-1', effectiveWeekStart: '2026-10-11', target: 4 },
+    ]);
+  });
+
+  it('renames and moves a goal without losing its logs', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-12', '2026-10-13']);
+    renderToday(ctx);
+    await ring('Peloton ride', 2, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Spin class' } });
+    await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-4' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await ring('Spin class', 2, 3)).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 });
+    expect(headings.map((h) => h.querySelector('.name')?.textContent)).toEqual(['Personal']);
+  });
+
+  it('changes nothing when the edit is cancelled', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    await ring('Peloton ride', 0, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await fireEvent.change(screen.getByLabelText('Times per week'), { target: { value: '6' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await ring('Peloton ride', 0, 3);
+  });
+
+  it('keeps the edit sheet open with a message when the name is blank', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    await ring('Peloton ride', 0, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: ' ' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Name can't be empty");
+    expect(screen.getByRole('dialog', { name: 'Edit weekly goal' })).toBeInTheDocument();
+  });
+
+  it('keeps the edit sheet open when the change could not be saved', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    await ring('Peloton ride', 0, 3);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    ctx.db.close();
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(SAVE_ERROR);
+    expect(screen.getByRole('dialog', { name: 'Edit weekly goal' })).toBeInTheDocument();
+  });
+
+  it('reverts a log that could not be saved and says so', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    renderToday(ctx);
+    const button = await ring('Peloton ride', 0, 3);
+    ctx.db.close();
+
+    await fireEvent.click(button);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(SAVE_ERROR);
+    await ring('Peloton ride', 0, 3);
+  });
+
+  it('reverts a removal that could not be saved and says so', async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-14']);
+    renderToday(ctx);
+    await ring('Peloton ride', 1, 3);
+    const minus = screen.getByRole('button', { name: 'Remove last Peloton ride log' });
+    ctx.db.close();
+
+    await fireEvent.click(minus);
+
+    expect(await screen.findByRole('status')).toHaveTextContent(SAVE_ERROR);
+    await ring('Peloton ride', 1, 3);
+  });
+
+  it('keeps the new-goal sheet open when saving fails', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+    ctx.db.close();
+
+    await openNewWeekly('Peloton ride');
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(SAVE_ERROR);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it("drops a deleted list's weekly goals from Today but keeps their history", async () => {
+    const ctx = setup();
+    await seedGoal(ctx);
+    await addLogs(ctx, 'item-1', ['2026-10-12']);
+    await ctx.listsRepo.remove('list-1');
+    renderToday(ctx);
+
+    await screen.findByText(EMPTY);
+    expect(screen.queryByRole('button', { name: /^Log Peloton ride/ })).toBeNull();
+    expect((await ctx.db.items.get('item-1'))?.archivedAt).toBe(1_000);
+    expect(await ctx.db.completions.count()).toBe(1);
+    expect(await ctx.db.targetHistory.count()).toBe(1);
+  });
+
+  it('shows weekly goal names containing HTML as plain text', async () => {
+    const ctx = setup();
+    await seedGoal(ctx, '<img src=x onerror=alert(1)>');
+    renderToday(ctx);
+
+    expect(
+      await ring('<img src=x onerror=alert(1)>', 0, 3),
+    ).toBeInTheDocument();
+    expect(document.querySelectorAll('img')).toHaveLength(0);
   });
 });

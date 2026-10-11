@@ -1,9 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
-import type { TodayRow } from '../domain/today';
+import type { DailyRow } from '../domain/today';
 import HabitRow from './HabitRow.svelte';
 
-const row = (overrides: Partial<Omit<TodayRow, 'item'>> = {}): TodayRow => ({
+const row = (overrides: Partial<Omit<DailyRow, 'item' | 'kind'>> = {}): DailyRow => ({
+  kind: 'daily',
   item: { id: 'item-1', listId: 'list-1', type: 'daily', title: 'Meditate', order: 0 },
   streak: 0,
   doneToday: false,
@@ -11,7 +12,7 @@ const row = (overrides: Partial<Omit<TodayRow, 'item'>> = {}): TodayRow => ({
   ...overrides,
 });
 
-const renderRow = (value: TodayRow, onToggle = vi.fn()) => {
+const renderRow = (value: DailyRow, onToggle = vi.fn()) => {
   render(HabitRow, { props: { row: value, onToggle } });
   return { onToggle, checkbox: screen.getByRole('checkbox', { name: 'Meditate' }) };
 };

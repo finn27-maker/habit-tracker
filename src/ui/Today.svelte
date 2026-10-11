@@ -2,13 +2,19 @@
   import { onMount, untrack } from 'svelte';
   import type { ItemsRepo } from '../data/items-repo';
   import type { ListsRepo } from '../data/lists-repo';
-  import { dayKey } from '../domain/dates';
-  import type { Item } from '../domain/items';
+  import { dayKey, weekStartKey } from '../domain/dates';
+  import type { Item, ItemType } from '../domain/items';
   import type { List } from '../domain/lists';
-  import { buildToday } from '../domain/today';
+  import type { Result } from '../domain/result';
+  import { buildToday, type WeeklyRow as WeeklyRowModel } from '../domain/today';
+  import { latestDayInWeek, type TargetPoint } from '../domain/weekly';
   import type { Clock } from '../platform/clock';
   import HabitForm from './HabitForm.svelte';
   import HabitRow from './HabitRow.svelte';
+  import WeeklyRow from './WeeklyRow.svelte';
+
+  type FormValues = { title: string; listId: string; type: ItemType; target: number };
+  type FormState = { kind: 'new' } | { kind: 'edit'; row: WeeklyRowModel };
 
   let {
     listsRepo,
@@ -20,23 +26,27 @@
   let lists = $state<List[]>([]);
   let items = $state<Item[]>([]);
   let days = $state<Record<string, string[]>>({});
+  let targets = $state<Record<string, TargetPoint[]>>({});
   let loaded = $state(false);
   let notice = $state('');
-  let showForm = $state(false);
+  let form = $state<FormState | null>(null);
   let formError = $state('');
 
   const today = $derived(dayKey(now));
-  const groups = $derived(buildToday({ lists, items, completionDays: days, today }));
+  const groups = $derived(
+    buildToday({ lists, items, completionDays: days, targets, today }),
+  );
   const dateLabel = $derived(
     now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
   );
 
   /** Shows what is actually in storage, or the first thing that could not be read. */
   async function refresh() {
-    const [listResult, itemResult, dayResult] = await Promise.all([
+    const [listResult, itemResult, dayResult, targetResult] = await Promise.all([
       listsRepo.getAll(),
       itemsRepo.listActive(),
       itemsRepo.completionDays(),
+      itemsRepo.listTargets(),
     ]);
     if (!listResult.ok) {
       notice = listResult.error;
@@ -44,10 +54,13 @@
       notice = itemResult.error;
     } else if (!dayResult.ok) {
       notice = dayResult.error;
+    } else if (!targetResult.ok) {
+      notice = targetResult.error;
     } else {
       lists = listResult.value;
       items = itemResult.value;
       days = dayResult.value;
+      targets = targetResult.value;
       notice = '';
       loaded = true;
     }
@@ -68,36 +81,79 @@
     return stopWatching;
   });
 
-  /** Updates the checkbox at once, then saves; puts it back if saving fails. */
-  async function toggle(itemId: string) {
-    // Read the clock now: the screen may still show yesterday just after midnight.
+  /**
+   * Reads the clock at tap time: the screen may still show yesterday (or last week) just
+   * after midnight, and the tap belongs to the real day. Returns that day.
+   */
+  function stampNow(): string {
     const current = clock.now();
     now = current;
-    const day = dayKey(current);
+    return dayKey(current);
+  }
 
-    const before = days[itemId] ?? [];
-    const wasDone = before.includes(day);
-    days = { ...days, [itemId]: wasDone ? before.filter((d) => d !== day) : [...before, day] };
-
-    const result = await itemsRepo.toggleDay(itemId, day);
+  /** Updates the screen at once, then saves; puts it back if saving fails. */
+  async function applyOptimistic(
+    itemId: string,
+    before: string[],
+    next: string[],
+    save: () => Promise<Result<unknown>>,
+  ) {
+    days = { ...days, [itemId]: next };
+    const result = await save();
     if (!result.ok) {
       days = { ...days, [itemId]: before };
       notice = result.error;
     }
   }
 
-  function openForm() {
-    formError = '';
-    showForm = true;
+  async function toggle(itemId: string) {
+    const day = stampNow();
+    const before = days[itemId] ?? [];
+    const next = before.includes(day) ? before.filter((d) => d !== day) : [...before, day];
+    await applyOptimistic(itemId, before, next, () => itemsRepo.toggleDay(itemId, day));
   }
 
-  async function addHabit(values: { title: string; listId: string }) {
-    const result = await itemsRepo.create({ ...values, type: 'daily' });
+  async function logWeekly(itemId: string) {
+    const day = stampNow();
+    const before = days[itemId] ?? [];
+    await applyOptimistic(itemId, before, [...before, day], () =>
+      itemsRepo.addCompletion(itemId, day),
+    );
+  }
+
+  async function undoWeekly(itemId: string) {
+    const weekStart = weekStartKey(stampNow());
+    const before = days[itemId] ?? [];
+    const latest = latestDayInWeek(before, weekStart);
+    if (latest === undefined) return; // nothing logged in the week the clock is really in
+    const index = before.lastIndexOf(latest);
+    await applyOptimistic(
+      itemId,
+      before,
+      before.filter((_, i) => i !== index),
+      () => itemsRepo.removeLatestCompletion(itemId, weekStart),
+    );
+  }
+
+  function openForm(next: FormState) {
+    formError = '';
+    form = next;
+  }
+
+  async function save(current: FormState, values: FormValues) {
+    const result =
+      current.kind === 'edit'
+        ? await itemsRepo.update(current.row.item.id, {
+            title: values.title,
+            listId: values.listId,
+            target: values.target,
+          })
+        : await itemsRepo.create(values);
     if (!result.ok) {
       formError = result.error;
       return;
     }
-    showForm = false;
+    form = null;
     await refresh();
   }
 </script>
@@ -107,7 +163,9 @@
     <p class="date">{dateLabel}</p>
     <h1>Today</h1>
   </div>
-  <button type="button" class="add" aria-label="New habit" onclick={openForm}>+</button>
+  <button type="button" class="add" aria-label="New habit" onclick={() => openForm({ kind: 'new' })}>
+    +
+  </button>
 </header>
 
 {#if notice}
@@ -122,7 +180,16 @@
     </h2>
     <ul class="rows">
       {#each group.rows as row (row.item.id)}
-        <HabitRow {row} onToggle={() => toggle(row.item.id)} />
+        {#if row.kind === 'daily'}
+          <HabitRow {row} onToggle={() => toggle(row.item.id)} />
+        {:else}
+          <WeeklyRow
+            {row}
+            onLog={() => logWeekly(row.item.id)}
+            onUndo={() => undoWeekly(row.item.id)}
+            onEdit={() => openForm({ kind: 'edit', row })}
+          />
+        {/if}
       {/each}
     </ul>
   </section>
@@ -134,8 +201,22 @@
   {/if}
 {/each}
 
-{#if showForm}
-  <HabitForm {lists} error={formError} onSubmit={addHabit} onCancel={() => (showForm = false)} />
+{#if form}
+  {@const current = form}
+  <HabitForm
+    {lists}
+    error={formError}
+    initial={current.kind === 'edit'
+      ? {
+          title: current.row.item.title,
+          listId: current.row.item.listId,
+          type: current.row.item.type,
+          target: current.row.target,
+        }
+      : undefined}
+    onSubmit={(values) => save(current, values)}
+    onCancel={() => (form = null)}
+  />
 {/if}
 
 <style>

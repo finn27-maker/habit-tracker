@@ -6,6 +6,8 @@ import {
   isDayKey,
   nextLocalMidnight,
   parseDayKey,
+  weekNumber,
+  weekStartKey,
 } from './dates';
 
 const hoursBetween = (from: Date, to: Date) => (to.getTime() - from.getTime()) / 3_600_000;
@@ -73,6 +75,43 @@ describe('dayNumber', () => {
 
   it('is a whole number', () => {
     expect(Number.isInteger(dayNumber('2026-10-14'))).toBe(true);
+  });
+});
+
+describe('weekStartKey and weekNumber (weeks run Sunday to Saturday)', () => {
+  it.each([
+    ['2026-10-11', '2026-10-11'], // a Sunday starts its own week
+    ['2026-10-14', '2026-10-11'],
+    ['2026-10-17', '2026-10-11'], // Saturday ends it
+    ['2026-10-18', '2026-10-18'],
+    ['2026-03-08', '2026-03-08'], // spring forward Sunday (23 hours)
+    ['2026-03-14', '2026-03-08'],
+    ['2026-11-01', '2026-11-01'], // fall back Sunday (25 hours)
+    ['2026-11-07', '2026-11-01'],
+    ['2026-01-01', '2025-12-28'], // week spanning the new year
+    ['2028-02-29', '2028-02-27'], // leap day
+  ])('the week containing %s starts on %s', (day, weekStart) => {
+    expect(weekStartKey(day)).toBe(weekStart);
+  });
+
+  it('is always a Sunday', () => {
+    for (let day = '2026-01-01'; day < '2027-01-01'; day = addDaysToKey(day, 1)) {
+      expect(parseDayKey(weekStartKey(day)).getDay()).toBe(0);
+    }
+  });
+
+  it('gives the same number to every day of a week and one more to the next week', () => {
+    const sunday = '2026-10-11';
+    const numbers = Array.from({ length: 7 }, (_, i) => weekNumber(addDaysToKey(sunday, i)));
+    expect(new Set(numbers).size).toBe(1);
+    expect(weekNumber('2026-10-18')).toBe(numbers[0]! + 1);
+    expect(weekNumber('2026-10-10')).toBe(numbers[0]! - 1);
+  });
+
+  it('steps by exactly one across the daylight-saving Sundays', () => {
+    expect(weekNumber('2026-03-08') - weekNumber('2026-03-07')).toBe(1);
+    expect(weekNumber('2026-11-01') - weekNumber('2026-10-31')).toBe(1);
+    expect(weekNumber('2026-11-08') - weekNumber('2026-11-01')).toBe(1);
   });
 });
 
