@@ -8,11 +8,7 @@
   import { isStandalone } from './platform/install';
   import { whenOnline } from './platform/online';
   import InstallBanner from './ui/InstallBanner.svelte';
-  import Lists from './ui/Lists.svelte';
-  import ListPage from './ui/ListPage.svelte';
-  import { listIdFromHash, routeFromHash } from './ui/route';
-  import TabBar from './ui/TabBar.svelte';
-  import Today from './ui/Today.svelte';
+  import Router from './ui/Router.svelte';
   import UpdateToast from './ui/UpdateToast.svelte';
 
   const needRefresh = writable(false);
@@ -62,27 +58,11 @@
     },
   });
 
-  let hash = $state(location.hash);
-  const route = $derived(routeFromHash(hash));
-  const listId = $derived(listIdFromHash(hash));
 </script>
 
-<svelte:window onhashchange={() => (hash = location.hash)} />
-
-<main>
+<Router {listsRepo} {itemsRepo} {clock}>
   <InstallBanner {standalone} />
-  {#if route === 'lists'}
-    <Lists repo={listsRepo} />
-  {:else if route === 'list' && listId !== null}
-    {#key listId}
-      <ListPage {listId} {listsRepo} {itemsRepo} {clock} />
-    {/key}
-  {:else}
-    <Today {listsRepo} {itemsRepo} {clock} />
-  {/if}
-</main>
-
-<TabBar current={route} />
+</Router>
 
 <UpdateToast
   needRefresh={$needRefresh}

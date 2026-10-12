@@ -12,6 +12,7 @@ const ITEM_NOT_FOUND = 'Habit not found';
 const NOT_WEEKLY = 'Not a weekly goal';
 const NOT_TODO = 'Not a to-do';
 const INVALID_DAY = 'Invalid day';
+const FUTURE_DAY = "Pick a day that isn't in the future";
 
 export interface ItemsRepoDeps {
   newId?: () => string;
@@ -55,6 +56,11 @@ export interface ItemsRepo {
   /** Weekly goals: logs one more completion on `day`; several per day are allowed. */
   addCompletion(itemId: string, day: string): Promise<Result<void>>;
   /**
+   * Weekly goals: removes the log made last on `day` (calendar backfill). Resolves to
+   * whether there was one to remove.
+   */
+  removeCompletionOn(itemId: string, day: string): Promise<Result<boolean>>;
+  /**
    * Weekly goals: removes the most recent completion in the week that starts on
    * `weekStart` (latest day, and the one logged last on that day). Resolves to whether
    * anything was removed.
@@ -90,6 +96,12 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
   const now = deps.now ?? Date.now;
 
   const currentWeekStart = () => weekStartKey(dayKey(new Date(now())));
+
+  /** Why `day` can't be logged, if it can't: not a day, or after today. */
+  function dayProblem(day: string): string | null {
+    if (!isDayKey(day)) return INVALID_DAY;
+    return day > dayKey(new Date(now())) ? FUTURE_DAY : null;
+  }
 
   /** The order that puts a new item at the end of its list. */
   async function nextOrder(listId: string): Promise<number> {
@@ -187,7 +199,8 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
       }),
 
     toggleDay: async (itemId, day) => {
-      if (!isDayKey(day)) return err(INVALID_DAY);
+      const problem = dayProblem(day);
+      if (problem) return err(problem);
 
       return guard(SAVE_ERROR, () =>
         db.transaction('rw', db.items, db.completions, async () => {
@@ -207,7 +220,8 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
     },
 
     addCompletion: async (itemId, day) => {
-      if (!isDayKey(day)) return err(INVALID_DAY);
+      const problem = dayProblem(day);
+      if (problem) return err(problem);
 
       return guard(SAVE_ERROR, () =>
         db.transaction('rw', db.items, db.completions, async () => {
@@ -217,6 +231,25 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
 
           await db.completions.add({ id: newId(), itemId, dayKey: day, createdAt: now() });
           return ok(undefined);
+        }),
+      );
+    },
+
+    removeCompletionOn: async (itemId, day) => {
+      if (!isDayKey(day)) return err(INVALID_DAY);
+
+      return guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, db.completions, async () => {
+          const item = await db.items.get(itemId);
+          if (!item || !isActive(item)) return err(ITEM_NOT_FOUND);
+          if (item.type !== 'weekly') return err(NOT_WEEKLY);
+
+          const [latest] = (await db.completions.where('[itemId+dayKey]').equals([itemId, day]).toArray()).sort(
+            (a, b) => b.createdAt - a.createdAt || b.id.localeCompare(a.id),
+          );
+          if (!latest) return ok(false);
+          await db.completions.delete(latest.id);
+          return ok(true);
         }),
       );
     },

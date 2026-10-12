@@ -11,17 +11,12 @@
 <ul class="rows">
   {#each rows as row (row.item.id)}
     {#if row.kind === 'daily'}
-      <HabitRow
-        {row}
-        onToggle={() => board.toggle(row.item.id)}
-        onEdit={() => board.openForm({ kind: 'edit', row })}
-      />
+      <HabitRow {row} onToggle={() => board.toggle(row.item.id)} />
     {:else if row.kind === 'weekly'}
       <WeeklyRow
         {row}
         onLog={() => board.logWeekly(row.item.id)}
         onUndo={() => board.undoWeekly(row.item.id)}
-        onEdit={() => board.openForm({ kind: 'edit', row })}
       />
     {:else}
       <TodoRow

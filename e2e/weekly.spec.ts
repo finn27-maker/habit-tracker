@@ -61,17 +61,20 @@ test('a weekly goal sits beside daily habits under its list', async ({ page }) =
   await expect(rows.nth(1).getByRole('button', { name: /^Log Peloton ride/ })).toBeVisible();
 });
 
-test('tapping the name edits the target, and the new target survives a reload', async ({ page }) => {
+test('Edit on the goal’s page changes the target, and it survives a reload', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
   await addWeekly(page, 'Peloton ride');
   await ring(page, 'Peloton ride', 0, 3).click();
 
-  await page.getByRole('button', { name: 'Edit Peloton ride' }).click();
+  await page.getByRole('link', { name: 'Peloton ride details' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Edit weekly goal' })).toBeVisible();
   await expect(page.getByLabel('Repeats')).toHaveCount(0);
   await page.getByLabel('Times per week').selectOption('4');
   await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByRole('link', { name: 'Back' }).click();
 
   await expect(ring(page, 'Peloton ride', 1, 4)).toHaveText('1/4');
   await expect.poll(() => completionCount(page)).toBe(1);
@@ -136,7 +139,7 @@ test('the ring, name and minus controls are at least 44 by 44 pixels', async ({ 
 
   for (const target of [
     ring(page, 'Peloton ride', 1, 3),
-    page.getByRole('button', { name: 'Edit Peloton ride' }),
+    page.getByRole('link', { name: 'Peloton ride details' }),
     page.getByRole('button', { name: 'Remove last Peloton ride log' }),
   ]) {
     const box = await target.boundingBox();

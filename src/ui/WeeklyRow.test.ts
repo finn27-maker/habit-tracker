@@ -15,7 +15,7 @@ const row = (overrides: Partial<Omit<WeeklyRow, 'item' | 'kind'>> = {}): WeeklyR
 });
 
 function renderRow(value: WeeklyRow) {
-  const handlers = { onLog: vi.fn(), onUndo: vi.fn(), onEdit: vi.fn() };
+  const handlers = { onLog: vi.fn(), onUndo: vi.fn() };
   render(WeeklyRowView, { props: { row: value, ...handlers } });
   return handlers;
 }
@@ -31,22 +31,17 @@ describe('WeeklyRow', () => {
     expect(screen.queryByRole('img')).toBeNull();
   });
 
-  it('logs when the ring is tapped, and edits when the name is tapped', async () => {
+  it('logs when the ring is tapped', async () => {
     const handlers = renderRow(row());
     await fireEvent.click(ring(0, 3));
     expect(handlers.onLog).toHaveBeenCalledTimes(1);
-    expect(handlers.onEdit).not.toHaveBeenCalled();
-
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
-    expect(handlers.onEdit).toHaveBeenCalledTimes(1);
-    expect(handlers.onLog).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the name as visible text', () => {
+  it('shows the name as a link to the goal’s page', () => {
     renderRow(row());
-    expect(screen.getByRole('button', { name: 'Edit Peloton ride' })).toHaveTextContent(
-      'Peloton ride',
-    );
+    const name = screen.getByRole('link', { name: 'Peloton ride details' });
+    expect(name).toHaveTextContent('Peloton ride');
+    expect(name).toHaveAttribute('href', '#/item/item-1');
   });
 
   it('offers a minus button once something is logged', async () => {
@@ -58,7 +53,7 @@ describe('WeeklyRow', () => {
 
   it('is marked met at the target and keeps counting beyond it', () => {
     const { unmount } = render(WeeklyRowView, {
-      props: { row: row({ count: 3, met: true }), onLog: vi.fn(), onUndo: vi.fn(), onEdit: vi.fn() },
+      props: { row: row({ count: 3, met: true }), onLog: vi.fn(), onUndo: vi.fn() },
     });
     expect(ring(3, 3, ', goal met')).toHaveTextContent('3/3');
     expect(document.querySelector('.progress')?.classList.contains('met')).toBe(true);
@@ -76,13 +71,13 @@ describe('WeeklyRow', () => {
     const circumference = 2 * Math.PI * 20;
 
     const first = render(WeeklyRowView, {
-      props: { row: row({ count: 1 }), onLog: vi.fn(), onUndo: vi.fn(), onEdit: vi.fn() },
+      props: { row: row({ count: 1 }), onLog: vi.fn(), onUndo: vi.fn() },
     });
     expect(dash()).toBeCloseTo(circumference / 3, 1);
     first.unmount();
 
     const over = render(WeeklyRowView, {
-      props: { row: row({ count: 5, met: true }), onLog: vi.fn(), onUndo: vi.fn(), onEdit: vi.fn() },
+      props: { row: row({ count: 5, met: true }), onLog: vi.fn(), onUndo: vi.fn() },
     });
     expect(dash()).toBeCloseTo(circumference, 1);
     over.unmount();

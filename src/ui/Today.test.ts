@@ -4,12 +4,33 @@ import { ITEMS_LOAD_ERROR } from '../data/items-repo';
 import { LOAD_ERROR, SAVE_ERROR } from '../data/lists-repo';
 import { STARTER_LISTS } from '../domain/lists';
 import { setupApp, type AppCtx } from '../testing/app-fixture';
+import Router from './Router.svelte';
 import Today from './Today.svelte';
 
 const EMPTY = 'Nothing here yet. Tap + to add your first habit or to-do.';
 
 const setup = (start?: Date) => setupApp(start, 'today-ui');
 type Ctx = AppCtx;
+
+/** Every screen behind the hash router, starting on Today. */
+function renderApp(ctx: Ctx) {
+  location.hash = '';
+  return render(Router, {
+    props: { listsRepo: ctx.listsRepo, itemsRepo: ctx.itemsRepo, clock: ctx.clock },
+  });
+}
+
+/** From Today: tap the item's name to open its page, then tap Edit there. */
+async function openEdit(title: string, nth = 0) {
+  const links = await screen.findAllByRole('link', { name: `${title} details` });
+  await fireEvent.click(links[nth]!);
+  await fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+}
+
+/** From a detail page, back to the screen it was opened from. */
+async function goBack() {
+  await fireEvent.click(await screen.findByRole('link', { name: 'Back' }));
+}
 
 const renderToday = (ctx: Ctx) =>
   render(Today, {
@@ -371,8 +392,8 @@ describe('Today screen', () => {
 });
 
 describe('editing and deleting', () => {
-  const openEdit = async (title: string) =>
-    fireEvent.click(await screen.findByRole('button', { name: `Edit ${title}` }));
+  // Edit lives on each habit's page now, so these run the whole app.
+  const renderToday = renderApp;
 
   async function deleteViaSheet() {
     await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
@@ -393,10 +414,6 @@ describe('editing and deleting', () => {
     expect(within(dialog).getByLabelText('List')).toHaveValue('list-4');
     expect(within(dialog).queryByLabelText('Repeats')).toBeNull();
     expect(within(dialog).queryByLabelText('Times per week')).toBeNull();
-    expect(screen.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute(
-      'aria-checked',
-      'false',
-    );
     expect(await completions(ctx)).toHaveLength(0);
   });
 
@@ -411,6 +428,10 @@ describe('editing and deleting', () => {
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Meditate 10 min' } });
     await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-1' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Meditate 10 min' }),
+    ).toBeInTheDocument();
+    await goBack();
 
     expect(await checkbox('Meditate 10 min')).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByRole('img', { name: '2 day streak' })).toBeInTheDocument();
@@ -447,13 +468,14 @@ describe('editing and deleting', () => {
     await checkbox('Peloton ride');
 
     // Both items are called "Peloton ride"; the daily one was added first, so it is listed first.
-    const [dailyName] = await screen.findAllByRole('button', { name: 'Edit Peloton ride' });
-    await fireEvent.click(dailyName!);
+    await openEdit('Peloton ride', 0);
     expect(screen.getByRole('dialog', { name: 'Edit habit' })).toBeInTheDocument();
     await deleteViaSheet();
 
-    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Peloton ride' })).toBeNull());
-    expect(screen.getByRole('button', { name: /^Log Peloton ride/ })).toBeInTheDocument();
+    // Deleting goes back to Today, where only the weekly goal is left.
+    expect(await screen.findByRole('button', { name: /^Log Peloton ride/ })).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'Peloton ride' })).toBeNull();
+    expect(location.hash).toBe('#/today');
     expect(screen.queryByRole('dialog')).toBeNull();
     expect((await ctx.db.items.get('item-1'))?.archivedAt).toBeDefined();
     expect((await ctx.db.items.get('item-2'))?.archivedAt).toBeUndefined();
@@ -504,7 +526,7 @@ describe('editing and deleting', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(SAVE_ERROR);
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('checkbox', { name: 'Meditate' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Meditate' })).toBeInTheDocument();
   });
 
   it('refuses a blank name for a daily habit and keeps the sheet open', async () => {
@@ -763,13 +785,13 @@ describe('weekly goals on Today', () => {
     expect(await ctx.db.completions.count()).toBe(3);
   });
 
-  it('opens an edit sheet from the name without logging anything', async () => {
+  it('opens an edit sheet from the goal’s page without logging anything', async () => {
     const ctx = setup();
     await seedGoal(ctx);
-    renderToday(ctx);
+    renderApp(ctx);
     await ring('Peloton ride', 0, 3);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await openEdit('Peloton ride');
 
     const dialog = screen.getByRole('dialog', { name: 'Edit weekly goal' });
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Peloton ride');
@@ -782,12 +804,14 @@ describe('weekly goals on Today', () => {
   it('saves a new target and shows it in the ring', async () => {
     const ctx = setup();
     await seedGoal(ctx);
-    renderToday(ctx);
+    renderApp(ctx);
     await ring('Peloton ride', 0, 3);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await openEdit('Peloton ride');
     await fireEvent.change(screen.getByLabelText('Times per week'), { target: { value: '4' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await goBack();
 
     expect(await ring('Peloton ride', 0, 4)).toHaveTextContent('0/4');
     expect(screen.queryByRole('dialog')).toBeNull();
@@ -800,13 +824,15 @@ describe('weekly goals on Today', () => {
     const ctx = setup();
     await seedGoal(ctx);
     await addLogs(ctx, 'item-1', ['2026-10-12', '2026-10-13']);
-    renderToday(ctx);
+    renderApp(ctx);
     await ring('Peloton ride', 2, 3);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await openEdit('Peloton ride');
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Spin class' } });
     await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-4' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await screen.findByRole('heading', { level: 1, name: 'Spin class' });
+    await goBack();
 
     expect(await ring('Spin class', 2, 3)).toBeInTheDocument();
     const headings = screen.getAllByRole('heading', { level: 2 });
@@ -816,24 +842,25 @@ describe('weekly goals on Today', () => {
   it('changes nothing when the edit is cancelled', async () => {
     const ctx = setup();
     await seedGoal(ctx);
-    renderToday(ctx);
+    renderApp(ctx);
     await ring('Peloton ride', 0, 3);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await openEdit('Peloton ride');
     await fireEvent.change(screen.getByLabelText('Times per week'), { target: { value: '6' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
 
     expect(screen.queryByRole('dialog')).toBeNull();
+    await goBack();
     await ring('Peloton ride', 0, 3);
   });
 
   it('keeps the edit sheet open with a message when the name is blank', async () => {
     const ctx = setup();
     await seedGoal(ctx);
-    renderToday(ctx);
+    renderApp(ctx);
     await ring('Peloton ride', 0, 3);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await openEdit('Peloton ride');
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: ' ' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -844,10 +871,10 @@ describe('weekly goals on Today', () => {
   it('keeps the edit sheet open when the change could not be saved', async () => {
     const ctx = setup();
     await seedGoal(ctx);
-    renderToday(ctx);
+    renderApp(ctx);
     await ring('Peloton ride', 0, 3);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Edit Peloton ride' }));
+    await openEdit('Peloton ride');
     ctx.db.close();
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 

@@ -1,11 +1,8 @@
 <script lang="ts">
   import type { DailyRow } from '../domain/today';
+  import { itemHash } from './route';
 
-  let {
-    row,
-    onToggle,
-    onEdit,
-  }: { row: DailyRow; onToggle: () => void; onEdit: () => void } = $props();
+  let { row, onToggle }: { row: DailyRow; onToggle: () => void } = $props();
 
   const streakLabel = $derived(`${row.streak} day streak${row.atRisk ? ', not done today' : ''}`);
 </script>
@@ -23,9 +20,9 @@
       {#if row.doneToday}✓{/if}
     </span>
   </button>
-  <button type="button" class="name" aria-label="Edit {row.item.title}" onclick={onEdit}>
+  <a class="name" href={itemHash(row.item.id)} aria-label="{row.item.title} details">
     {row.item.title}
-  </button>
+  </a>
   {#if row.streak > 0}
     <span class="streak" class:risk={row.atRisk} role="img" aria-label={streakLabel}>
       🔥 {row.streak}
@@ -68,15 +65,14 @@
   }
   .name {
     flex: 1;
+    display: flex;
+    align-items: center;
     min-width: 0;
     min-height: 3rem;
     padding: 0 0.5rem;
-    border: 0;
-    background: transparent;
     color: var(--text);
-    font: inherit;
     font-size: 1.0625rem;
-    text-align: left;
+    text-decoration: none;
     overflow-wrap: anywhere;
   }
   .streak {

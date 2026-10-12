@@ -1,12 +1,8 @@
 <script lang="ts">
   import type { WeeklyRow } from '../domain/today';
+  import { itemHash } from './route';
 
-  let {
-    row,
-    onLog,
-    onUndo,
-    onEdit,
-  }: { row: WeeklyRow; onLog: () => void; onUndo: () => void; onEdit: () => void } = $props();
+  let { row, onLog, onUndo }: { row: WeeklyRow; onLog: () => void; onUndo: () => void } = $props();
 
   const RADIUS = 20;
   const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -37,9 +33,9 @@
     <span class="count" aria-hidden="true">{row.count}/{row.target}</span>
   </button>
 
-  <button type="button" class="name" aria-label="Edit {row.item.title}" onclick={onEdit}>
+  <a class="name" href={itemHash(row.item.id)} aria-label="{row.item.title} details">
     {row.item.title}
-  </button>
+  </a>
 
   {#if row.count > 0}
     <button
@@ -106,15 +102,14 @@
   }
   .name {
     flex: 1;
+    display: flex;
+    align-items: center;
     min-width: 0;
     min-height: 3rem;
     padding: 0 0.5rem;
-    border: 0;
-    background: transparent;
     color: var(--text);
-    font: inherit;
     font-size: 1.0625rem;
-    text-align: left;
+    text-decoration: none;
     overflow-wrap: anywhere;
   }
   .minus {

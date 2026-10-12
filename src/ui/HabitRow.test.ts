@@ -13,7 +13,7 @@ const row = (overrides: Partial<Omit<DailyRow, 'item' | 'kind'>> = {}): DailyRow
 });
 
 const renderRow = (value: DailyRow) => {
-  const handlers = { onToggle: vi.fn(), onEdit: vi.fn() };
+  const handlers = { onToggle: vi.fn() };
   render(HabitRow, { props: { row: value, ...handlers } });
   return { ...handlers, checkbox: screen.getByRole('checkbox', { name: 'Meditate' }) };
 };
@@ -30,19 +30,18 @@ describe('HabitRow', () => {
     expect(checkbox).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('toggles when the circle is tapped, without editing', async () => {
-    const { checkbox, onToggle, onEdit } = renderRow(row());
+  it('toggles when the circle is tapped', async () => {
+    const { checkbox, onToggle } = renderRow(row());
     await fireEvent.click(checkbox);
     expect(onToggle).toHaveBeenCalledTimes(1);
-    expect(onEdit).not.toHaveBeenCalled();
   });
 
-  it('edits when the name is tapped, without toggling', async () => {
-    const { onToggle, onEdit } = renderRow(row());
-    const name = screen.getByRole('button', { name: 'Edit Meditate' });
+  it('links the name to the habit’s page, without toggling', async () => {
+    const { onToggle } = renderRow(row());
+    const name = screen.getByRole('link', { name: 'Meditate details' });
     expect(name).toHaveTextContent('Meditate');
+    expect(name).toHaveAttribute('href', '#/item/item-1');
     await fireEvent.click(name);
-    expect(onEdit).toHaveBeenCalledTimes(1);
     expect(onToggle).not.toHaveBeenCalled();
   });
 

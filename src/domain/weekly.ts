@@ -19,19 +19,20 @@ export interface WeeklyStatus {
 }
 
 /** A target record with its week resolved to a number once, so streak loops stay cheap. */
-interface WeekTarget {
+export interface WeekTarget {
   week: number;
   target: number;
 }
 
-function weekTargets(points: readonly TargetPoint[]): WeekTarget[] {
+/** Target records ordered by week, ready for targetForWeek. */
+export function weekTargets(points: readonly TargetPoint[]): WeekTarget[] {
   return [...points]
     .sort((a, b) => a.effectiveWeekStart.localeCompare(b.effectiveWeekStart))
     .map((point) => ({ week: weekNumber(point.effectiveWeekStart), target: point.target }));
 }
 
-/** `sorted` must be ordered by week. */
-function targetForWeek(sorted: readonly WeekTarget[], week: number): number | undefined {
+/** The target for week number `week`, or undefined before the goal existed. `sorted` must be ordered by week. */
+export function targetForWeek(sorted: readonly WeekTarget[], week: number): number | undefined {
   let found: number | undefined;
   for (const entry of sorted) {
     if (entry.week > week) break;

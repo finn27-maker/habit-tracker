@@ -15,11 +15,14 @@ export function setupApp(start = new Date(2026, 9, 14, 9, 0), name = 'ui') {
   let l = 0;
   let i = 0;
   const listsRepo = createListsRepo(db, { newId: () => `list-${++l}`, now: () => 1_000 });
-  // Weekly goals record their first target in the week of this fixed "now", and to-dos are
-  // stamped with it when checked off.
-  const itemsRepo = createItemsRepo(db, { newId: () => `item-${++i}`, now: () => start.getTime() });
-
   let current = start;
+  // The repository reads the same clock as the screen, as in the app: weekly goals record
+  // their first target in the week of "now", to-dos are stamped with it, and days after it
+  // are refused.
+  const itemsRepo = createItemsRepo(db, {
+    newId: () => `item-${++i}`,
+    now: () => current.getTime(),
+  });
   let onNewDay: ((now: Date) => void) | null = null;
   let stopped = false;
   const clock: Clock = {

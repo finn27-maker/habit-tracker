@@ -166,6 +166,35 @@ export class Board {
   }
 
   /**
+   * Calendar backfill for a past (or today's) day: a daily habit toggles that day; a weekly
+   * goal gains a log, or loses one if the day already has any.
+   */
+  async backfill(itemId: string, day: string) {
+    const item = this.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const { itemsRepo } = this.#deps;
+    const before = this.days[itemId] ?? [];
+    const has = before.includes(day);
+
+    if (item.type === 'daily') {
+      const next = has ? before.filter((d) => d !== day) : [...before, day];
+      await this.#applyDays(itemId, before, next, () => itemsRepo.toggleDay(itemId, day));
+    } else if (has) {
+      const index = before.lastIndexOf(day);
+      await this.#applyDays(
+        itemId,
+        before,
+        before.filter((_, i) => i !== index),
+        () => itemsRepo.removeCompletionOn(itemId, day),
+      );
+    } else {
+      await this.#applyDays(itemId, before, [...before, day], () =>
+        itemsRepo.addCompletion(itemId, day),
+      );
+    }
+  }
+
+  /**
    * Checks a to-do off (it lingers, checked, before moving to Completed) or reopens it,
    * which also undoes a check-off that is still lingering.
    */

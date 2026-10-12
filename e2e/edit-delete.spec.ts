@@ -14,7 +14,8 @@ test('a duplicate daily habit can be deleted and stays gone after a reload', asy
   await addHabit(page, 'Peloton ride');
   await addHabit(page, 'Peloton ride', true);
 
-  await page.getByRole('button', { name: 'Edit Peloton ride' }).first().click();
+  await page.getByRole('link', { name: 'Peloton ride details' }).first().click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Edit habit' })).toBeVisible();
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('dialog')).toContainText('Delete "Peloton ride"?');
@@ -28,7 +29,7 @@ test('a duplicate daily habit can be deleted and stays gone after a reload', asy
   await expect(page.getByRole('checkbox', { name: 'Peloton ride' })).toHaveCount(0);
 });
 
-test('the circle checks off and the name opens the edit sheet', async ({ page }) => {
+test('the circle checks off and the name opens the page with Edit', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
   await addHabit(page, 'Meditate');
@@ -40,9 +41,12 @@ test('the circle checks off and the name opens the edit sheet', async ({ page })
   );
   await expect(page.getByRole('dialog')).toHaveCount(0);
 
-  await page.getByRole('button', { name: 'Edit Meditate' }).click();
+  await page.getByRole('link', { name: 'Meditate details' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByLabel('Name').fill('Meditate 10 min');
   await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Meditate 10 min' })).toBeVisible();
+  await page.getByRole('link', { name: 'Back' }).click();
   await expect(page.getByRole('checkbox', { name: 'Meditate 10 min' })).toHaveAttribute(
     'aria-checked',
     'true',
@@ -54,11 +58,13 @@ test('cancelling a delete keeps the item', async ({ page }) => {
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
   await addHabit(page, 'Meditate');
 
-  await page.getByRole('button', { name: 'Edit Meditate' }).click();
+  await page.getByRole('link', { name: 'Meditate details' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await page.getByRole('button', { name: 'Delete' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByLabel('Name')).toHaveValue('Meditate');
   await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('link', { name: 'Back' }).click();
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toBeVisible();
 });
 
@@ -68,7 +74,7 @@ test('the circle and the name are each at least 44 by 44 pixels', async ({ page 
   await addHabit(page, 'Meditate');
   for (const target of [
     page.getByRole('checkbox', { name: 'Meditate' }),
-    page.getByRole('button', { name: 'Edit Meditate' }),
+    page.getByRole('link', { name: 'Meditate details' }),
   ]) {
     const box = await target.boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(43.5);

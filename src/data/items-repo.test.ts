@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
+import { dayKey } from '../domain/dates';
 import { createDb } from './db';
 import { ITEMS_LOAD_ERROR, createItemsRepo } from './items-repo';
 import { SAVE_ERROR, createListsRepo } from './lists-repo';
@@ -483,6 +484,71 @@ describe('listTargets', () => {
   });
 });
 
+describe('backfill', () => {
+  const peloton = { title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 };
+
+  it('marks and un-marks any past day of a daily habit', async () => {
+    const { items, db } = await setup();
+    await items.create(meditate);
+    expect(await items.toggleDay('item-1', '2025-01-31')).toEqual({ ok: true, value: true });
+    expect((await db.completions.toArray()).map((c) => c.dayKey)).toEqual(['2025-01-31']);
+  });
+
+  it('refuses days after today, writing nothing', async () => {
+    const { items, db } = await setup();
+    await items.create(meditate);
+    await items.create(peloton);
+    const future = { ok: false, error: "Pick a day that isn't in the future" };
+    expect(await items.toggleDay('item-1', '2026-10-15')).toEqual(future);
+    expect(await items.addCompletion('item-2', '2026-10-15')).toEqual(future);
+    expect(await db.completions.count()).toBe(0);
+  });
+
+  it('removes the log made last on one day of a weekly goal', async () => {
+    let now = NOW;
+    const { items, db } = await setup(() => now);
+    await items.create(peloton);
+    await items.addCompletion('item-1', '2026-10-12');
+    now += 1;
+    await items.addCompletion('item-1', '2026-10-12');
+    await items.addCompletion('item-1', '2026-10-13');
+
+    expect(await items.removeCompletionOn('item-1', '2026-10-12')).toEqual({ ok: true, value: true });
+    const left = await db.completions.toArray();
+    expect(left.map((c) => [c.dayKey, c.createdAt]).sort()).toEqual([
+      ['2026-10-12', NOW],
+      ['2026-10-13', NOW + 1],
+    ]);
+    expect(await items.removeCompletionOn('item-1', '2026-10-11')).toEqual({ ok: true, value: false });
+  });
+
+  it('breaks a same-moment tie by removing the log saved last', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await items.addCompletion('item-1', '2026-10-12'); // id item-2
+    await items.addCompletion('item-1', '2026-10-12'); // id item-3, same timestamp
+    await items.removeCompletionOn('item-1', '2026-10-12');
+    expect((await db.completions.toArray()).map((c) => c.id)).toEqual(['item-2']);
+  });
+
+  it('refuses unknown items, daily habits and invalid days when removing a log', async () => {
+    const { items } = await setup();
+    await items.create(meditate);
+    expect(await items.removeCompletionOn('nope', '2026-10-12')).toEqual({
+      ok: false,
+      error: 'Habit not found',
+    });
+    expect(await items.removeCompletionOn('item-1', '2026-10-12')).toEqual({
+      ok: false,
+      error: 'Not a weekly goal',
+    });
+    expect(await items.removeCompletionOn('item-1', 'soon')).toEqual({
+      ok: false,
+      error: 'Invalid day',
+    });
+  });
+});
+
 describe('to-dos', () => {
   const flights = { title: 'Book flights', listId: 'list-4', type: 'todo', dueDate: '2026-10-20' };
 
@@ -576,6 +642,10 @@ describe('storage failures', () => {
     });
     expect(await items.archive('item-1')).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.setTodoDone('item-1', true)).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.removeCompletionOn('item-1', '2026-10-12')).toEqual({
+      ok: false,
+      error: SAVE_ERROR,
+    });
     expect(await items.listActive()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.completionDays()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.listTargets()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
@@ -595,7 +665,7 @@ describe('default dependencies', () => {
     expect(created.ok && created.value.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-/);
 
     const before = Date.now();
-    await items.toggleDay(created.ok ? created.value.id : '', '2026-10-14');
+    await items.toggleDay(created.ok ? created.value.id : '', dayKey(new Date()));
     const stored = (await db.completions.toArray())[0];
     expect(stored?.createdAt).toBeGreaterThanOrEqual(before);
     expect(stored?.createdAt).toBeLessThanOrEqual(Date.now());
