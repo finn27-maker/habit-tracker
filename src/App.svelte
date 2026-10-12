@@ -9,7 +9,8 @@
   import { whenOnline } from './platform/online';
   import InstallBanner from './ui/InstallBanner.svelte';
   import Lists from './ui/Lists.svelte';
-  import { routeFromHash } from './ui/route';
+  import ListPage from './ui/ListPage.svelte';
+  import { listIdFromHash, routeFromHash } from './ui/route';
   import TabBar from './ui/TabBar.svelte';
   import Today from './ui/Today.svelte';
   import UpdateToast from './ui/UpdateToast.svelte';
@@ -61,15 +62,21 @@
     },
   });
 
-  let route = $state(routeFromHash(location.hash));
+  let hash = $state(location.hash);
+  const route = $derived(routeFromHash(hash));
+  const listId = $derived(listIdFromHash(hash));
 </script>
 
-<svelte:window onhashchange={() => (route = routeFromHash(location.hash))} />
+<svelte:window onhashchange={() => (hash = location.hash)} />
 
 <main>
   <InstallBanner {standalone} />
   {#if route === 'lists'}
     <Lists repo={listsRepo} />
+  {:else if route === 'list' && listId !== null}
+    {#key listId}
+      <ListPage {listId} {listsRepo} {itemsRepo} {clock} />
+    {/key}
   {:else}
     <Today {listsRepo} {itemsRepo} {clock} />
   {/if}

@@ -10,6 +10,7 @@ export const ITEMS_LOAD_ERROR = "Couldn't load your habits. Close and reopen the
 const LIST_NOT_FOUND = 'List not found';
 const ITEM_NOT_FOUND = 'Habit not found';
 const NOT_WEEKLY = 'Not a weekly goal';
+const NOT_TODO = 'Not a to-do';
 const INVALID_DAY = 'Invalid day';
 
 export interface ItemsRepoDeps {
@@ -18,10 +19,27 @@ export interface ItemsRepoDeps {
 }
 
 export interface ItemsRepo {
-  /** `target` (times per week) is required for weekly goals and ignored otherwise. */
-  create(input: { title: string; listId: string; type: string; target?: number }): Promise<Result<Item>>;
-  /** Changes name, list and, for weekly goals, the target from the current week onwards. */
-  update(itemId: string, input: { title: string; listId: string; target?: number }): Promise<Result<Item>>;
+  /**
+   * `target` (times per week) is required for weekly goals and ignored otherwise;
+   * `dueDate` is optional for to-dos and ignored otherwise.
+   */
+  create(input: {
+    title: string;
+    listId: string;
+    type: string;
+    target?: number;
+    dueDate?: string;
+  }): Promise<Result<Item>>;
+  /**
+   * Changes name, list and, for weekly goals, the target from the current week onwards.
+   * For to-dos, a missing or empty `dueDate` clears the due date.
+   */
+  update(
+    itemId: string,
+    input: { title: string; listId: string; target?: number; dueDate?: string },
+  ): Promise<Result<Item>>;
+  /** To-dos: checks it off (stamping the time) or reopens it. */
+  setTodoDone(itemId: string, done: boolean): Promise<Result<Item>>;
   /**
    * "Delete" from the user's point of view: hides the item everywhere but keeps its
    * completions and target history so a later History screen can show or restore it.
@@ -56,7 +74,16 @@ const toItem = (record: ItemRecord): Item => ({
   type: record.type,
   title: record.title,
   order: record.order,
+  ...(record.dueDate !== undefined ? { dueDate: record.dueDate } : {}),
+  ...(record.completedAt !== undefined ? { completedAt: record.completedAt } : {}),
 });
+
+/** A copy of the record without one optional field (put() then removes it from storage). */
+function without(record: ItemRecord, field: 'dueDate' | 'completedAt'): ItemRecord {
+  const copy = { ...record };
+  delete copy[field];
+  return copy;
+}
 
 export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRepo {
   const newId = deps.newId ?? defaultNewId;
@@ -105,11 +132,17 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
 
           const parsed = validateItemInput({ ...input, type: item.type });
           if (!parsed.ok) return parsed;
-          const { title, listId, target } = parsed.value;
+          const { title, listId, target, dueDate } = parsed.value;
           if (!(await db.lists.get(listId))) return err(LIST_NOT_FOUND);
 
           const order = listId === item.listId ? item.order : await nextOrder(listId);
-          const record: ItemRecord = { ...item, title, listId, order };
+          const record: ItemRecord = {
+            ...without(item, 'dueDate'),
+            title,
+            listId,
+            order,
+            ...(dueDate !== undefined ? { dueDate } : {}),
+          };
           await db.items.put(record);
 
           if (target !== undefined) {
@@ -131,6 +164,19 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
           if (!item || !isActive(item)) return err(ITEM_NOT_FOUND);
           await db.items.update(itemId, { archivedAt: now() });
           return ok(undefined);
+        }),
+      ),
+
+    setTodoDone: (itemId, done) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, async () => {
+          const item = await db.items.get(itemId);
+          if (!item || !isActive(item)) return err(ITEM_NOT_FOUND);
+          if (item.type !== 'todo') return err(NOT_TODO);
+
+          const record = done ? { ...item, completedAt: now() } : without(item, 'completedAt');
+          await db.items.put(record);
+          return ok(toItem(record));
         }),
       ),
 

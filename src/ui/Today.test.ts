@@ -1,56 +1,15 @@
-import 'fake-indexeddb/auto';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
-import { createDb } from '../data/db';
-import { ITEMS_LOAD_ERROR, createItemsRepo } from '../data/items-repo';
-import { LOAD_ERROR, SAVE_ERROR, createListsRepo } from '../data/lists-repo';
+import { ITEMS_LOAD_ERROR } from '../data/items-repo';
+import { LOAD_ERROR, SAVE_ERROR } from '../data/lists-repo';
 import { STARTER_LISTS } from '../domain/lists';
-import type { Clock } from '../platform/clock';
+import { setupApp, type AppCtx } from '../testing/app-fixture';
 import Today from './Today.svelte';
 
-let dbCounter = 0;
 const EMPTY = 'Nothing here yet. Tap + to add your first habit or to-do.';
 
-function setup(start = new Date(2026, 9, 14, 9, 0)) {
-  const db = createDb(`today-ui-${++dbCounter}`);
-  let l = 0;
-  let i = 0;
-  const listsRepo = createListsRepo(db, { newId: () => `list-${++l}`, now: () => 1_000 });
-  // Weekly goals record their first target in the week of this clock's "now".
-  const itemsRepo = createItemsRepo(db, { newId: () => `item-${++i}`, now: () => start.getTime() });
-
-  let current = start;
-  let onNewDay: ((now: Date) => void) | null = null;
-  let stopped = false;
-  const clock: Clock = {
-    now: () => current,
-    watch: (callback) => {
-      onNewDay = callback;
-      return () => {
-        stopped = true;
-      };
-    },
-  };
-
-  return {
-    db,
-    listsRepo,
-    itemsRepo,
-    clock,
-    /** Moves the clock without telling the screen, like a stale screen after midnight. */
-    setNow: (date: Date) => {
-      current = date;
-    },
-    /** Moves the clock and delivers the new-day signal. */
-    rollTo: (date: Date) => {
-      current = date;
-      onNewDay?.(date);
-    },
-    isStopped: () => stopped,
-  };
-}
-
-type Ctx = ReturnType<typeof setup>;
+const setup = (start?: Date) => setupApp(start, 'today-ui');
+type Ctx = AppCtx;
 
 const renderToday = (ctx: Ctx) =>
   render(Today, {

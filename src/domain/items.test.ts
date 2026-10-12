@@ -79,6 +79,33 @@ describe('validateItemInput', () => {
     });
   });
 
+  describe('to-dos', () => {
+    const todo = { title: 'Clean garage', listId: 'list-1', type: 'todo' };
+
+    it('accepts no due date, an empty one, or a real day', () => {
+      expect(validateItemInput(todo)).toEqual({ ok: true, value: todo });
+      expect(validateItemInput({ ...todo, dueDate: '' })).toEqual({ ok: true, value: todo });
+      expect(validateItemInput({ ...todo, dueDate: '2026-10-20' })).toEqual({
+        ok: true,
+        value: { ...todo, dueDate: '2026-10-20' },
+      });
+    });
+
+    it.each(['2026-02-30', 'next week', '2026-1-5'])('rejects the due date %j', (dueDate) => {
+      expect(validateItemInput({ ...todo, dueDate })).toEqual({
+        ok: false,
+        error: 'Pick a valid date',
+      });
+    });
+
+    it('ignores a due date on habits and goals', () => {
+      expect(validateItemInput({ ...valid, dueDate: '2026-10-20' })).toEqual({
+        ok: true,
+        value: valid,
+      });
+    });
+  });
+
   it('reports the title problem before the list and type problems', () => {
     expect(validateItemInput({ title: '', listId: '', type: 'x' })).toEqual({
       ok: false,

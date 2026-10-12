@@ -483,6 +483,77 @@ describe('listTargets', () => {
   });
 });
 
+describe('to-dos', () => {
+  const flights = { title: 'Book flights', listId: 'list-4', type: 'todo', dueDate: '2026-10-20' };
+
+  it('stores a due date, and leaves it off when none was picked', async () => {
+    const { items, db } = await setup();
+    expect(await items.create(flights)).toEqual({
+      ok: true,
+      value: {
+        id: 'item-1',
+        listId: 'list-4',
+        type: 'todo',
+        title: 'Book flights',
+        order: 0,
+        dueDate: '2026-10-20',
+      },
+    });
+    const undated = await items.create({ ...flights, title: 'Clean garage', dueDate: '' });
+    expect(undated.ok && undated.value).not.toHaveProperty('dueDate');
+    expect(await db.items.get('item-2')).not.toHaveProperty('dueDate');
+    expect(await db.targetHistory.count()).toBe(0);
+  });
+
+  it('rejects an invalid due date', async () => {
+    const { items } = await setup();
+    expect(await items.create({ ...flights, dueDate: '2026-13-01' })).toEqual({
+      ok: false,
+      error: 'Pick a valid date',
+    });
+  });
+
+  it('changes or clears the due date when edited', async () => {
+    const { items, db } = await setup();
+    await items.create(flights);
+    const moved = await items.update('item-1', { ...flights, dueDate: '2026-10-22' });
+    expect(moved.ok && moved.value.dueDate).toBe('2026-10-22');
+
+    const cleared = await items.update('item-1', { title: 'Book flights', listId: 'list-4' });
+    expect(cleared.ok && cleared.value).not.toHaveProperty('dueDate');
+    expect(await db.items.get('item-1')).not.toHaveProperty('dueDate');
+  });
+
+  it('checks a to-do off with the time, and reopens it', async () => {
+    const { items, db } = await setup();
+    await items.create(flights);
+
+    const done = await items.setTodoDone('item-1', true);
+    expect(done.ok && done.value.completedAt).toBe(NOW);
+    expect((await db.items.get('item-1'))?.completedAt).toBe(NOW);
+
+    const reopened = await items.setTodoDone('item-1', false);
+    expect(reopened.ok && reopened.value).not.toHaveProperty('completedAt');
+    expect(await db.items.get('item-1')).not.toHaveProperty('completedAt');
+    expect((await items.listActive()).ok).toBe(true);
+  });
+
+  it('keeps the completion time when edited after being checked off', async () => {
+    const { items } = await setup();
+    await items.create(flights);
+    await items.setTodoDone('item-1', true);
+    const renamed = await items.update('item-1', { ...flights, title: 'Book train' });
+    expect(renamed.ok && renamed.value.completedAt).toBe(NOW);
+  });
+
+  it('refuses habits, goals and missing items', async () => {
+    const { items } = await setup();
+    await items.create(meditate);
+    expect(await items.setTodoDone('item-1', true)).toEqual({ ok: false, error: 'Not a to-do' });
+    expect(await items.setTodoDone('gone', true)).toEqual({ ok: false, error: 'Habit not found' });
+  });
+});
+
 describe('storage failures', () => {
   it('return a failed Result instead of throwing', async () => {
     const { items, db } = await setup();
@@ -504,6 +575,7 @@ describe('storage failures', () => {
       error: SAVE_ERROR,
     });
     expect(await items.archive('item-1')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.setTodoDone('item-1', true)).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.listActive()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.completionDays()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.listTargets()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });

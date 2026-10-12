@@ -47,6 +47,19 @@ describe('Lists screen', () => {
     expect(rows[3]!.querySelector('.icon')).toHaveStyle(`background: ${LIST_COLORS.green}`);
   });
 
+  it('opens a list page from each row, but not in Edit mode', async () => {
+    const { repo } = setup();
+    render(Lists, { props: { repo } });
+    await screen.findByText('Fitness');
+
+    expect(screen.getByRole('link', { name: 'Personal' })).toHaveAttribute('href', '#/list/id-4');
+    expect(screen.getAllByRole('link')).toHaveLength(4);
+
+    await startEditing();
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+  });
+
   it('shows an empty state when every list has been deleted', async () => {
     const { repo } = setup();
     await repo.ensureStarterLists();

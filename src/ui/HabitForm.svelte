@@ -1,41 +1,79 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import { addDaysToKey } from '../domain/dates';
   import { MAX_TARGET, MIN_TARGET, type ItemType } from '../domain/items';
   import type { List } from '../domain/lists';
+  import type { FormValues } from './board.svelte';
   import Sheet from './Sheet.svelte';
 
-  type Values = { title: string; listId: string; type: ItemType; target: number };
+  type Due = 'none' | 'today' | 'tomorrow' | 'pick';
 
   let {
     lists,
+    today,
     initial,
+    listId: startListId,
     error,
     onSubmit,
     onCancel,
     onDelete,
   }: {
     lists: readonly List[];
+    /** Local YYYY-MM-DD, for the Today/Tomorrow due choices. */
+    today: string;
     /** When given, the sheet edits this item and its type cannot change. */
-    initial?: Values;
+    initial?: FormValues;
+    /** The list a new item starts in (defaults to the first list). */
+    listId?: string;
     error: string;
-    onSubmit: (values: Values) => void;
+    onSubmit: (values: FormValues) => void;
     onCancel: () => void;
     /** Shown only when editing. Archives the item after the user confirms. */
     onDelete?: () => void;
   } = $props();
 
+  function dueChoice(dueDate: string): Due {
+    if (dueDate === '') return 'none';
+    if (dueDate === today) return 'today';
+    if (dueDate === addDaysToKey(today, 1)) return 'tomorrow';
+    return 'pick';
+  }
+
   // The sheet edits its own copy and is created fresh each time it opens.
   let title = $state(untrack(() => initial?.title ?? ''));
-  let listId = $state(untrack(() => initial?.listId ?? lists[0]?.id ?? ''));
+  let listId = $state(untrack(() => initial?.listId ?? startListId ?? lists[0]?.id ?? ''));
   let type = $state<ItemType>(untrack(() => initial?.type ?? 'daily'));
   let target = $state(untrack(() => initial?.target ?? 3));
+  let due = $state<Due>(untrack(() => dueChoice(initial?.dueDate ?? '')));
+  // "Pick a date" never shows an empty field: an existing date, or two days from now.
+  let date = $state(untrack(() => (due === 'pick' ? initial!.dueDate : addDaysToKey(today, 2))));
+  let localError = $state('');
   let confirmingDelete = $state(false);
 
   const editing = $derived(initial !== undefined);
-  const sheetTitle = $derived(
-    !initial ? 'New habit' : initial.type === 'weekly' ? 'Edit weekly goal' : 'Edit habit',
-  );
+  const sheetTitle = $derived.by(() => {
+    if (!initial) return 'New habit';
+    if (initial.type === 'weekly') return 'Edit weekly goal';
+    return initial.type === 'todo' ? 'Edit to-do' : 'Edit habit';
+  });
   const targetChoices = Array.from({ length: MAX_TARGET - MIN_TARGET + 1 }, (_, i) => MIN_TARGET + i);
+
+  function dueDate(): string | null {
+    if (due === 'none') return '';
+    if (due === 'today') return today;
+    if (due === 'tomorrow') return addDaysToKey(today, 1);
+    return date === '' ? null : date; // the field was cleared, or held no real date
+  }
+
+  function submit() {
+    const chosen = type === 'todo' ? dueDate() : '';
+    if (chosen === null) {
+      localError = 'Pick a valid date';
+      return;
+    }
+    localError = '';
+    onSubmit({ title, listId, type, target, dueDate: chosen });
+  }
 </script>
 
 <Sheet title={sheetTitle}>
@@ -59,7 +97,7 @@
     <form
       onsubmit={(event) => {
         event.preventDefault();
-        onSubmit({ title, listId, type, target });
+        submit();
       }}
     >
       <label for="habit-title">Name</label>
@@ -77,6 +115,7 @@
         <select id="habit-type" bind:value={type}>
           <option value="daily">Every day</option>
           <option value="weekly">Times a week</option>
+          <option value="todo">Once (to-do)</option>
         </select>
       {/if}
 
@@ -87,10 +126,22 @@
             <option value={choice}>{choice}</option>
           {/each}
         </select>
+      {:else if type === 'todo'}
+        <label for="habit-due">Due</label>
+        <select id="habit-due" bind:value={due}>
+          <option value="none">No date</option>
+          <option value="today">Today</option>
+          <option value="tomorrow">Tomorrow</option>
+          <option value="pick">Pick a date</option>
+        </select>
+        {#if due === 'pick'}
+          <label for="habit-date">Date</label>
+          <input id="habit-date" type="date" bind:value={date} />
+        {/if}
       {/if}
 
-      {#if error}
-        <p class="error" role="alert">{error}</p>
+      {#if localError || error}
+        <p class="error" role="alert">{localError || error}</p>
       {/if}
 
       <div class="buttons">

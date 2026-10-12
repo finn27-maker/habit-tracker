@@ -12,6 +12,11 @@ describe('TabBar', () => {
     expect(screen.getByRole('link', { name: 'Today' })).not.toHaveAttribute('aria-current');
   });
 
+  it('keeps the Lists tab current on a list page', () => {
+    render(TabBar, { props: { current: 'list' } });
+    expect(screen.getByRole('link', { name: 'Lists' })).toHaveAttribute('aria-current', 'page');
+  });
+
   it('marks the Today tab as current', () => {
     render(TabBar, { props: { current: 'today' } });
     expect(screen.getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');

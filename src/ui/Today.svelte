@@ -2,178 +2,36 @@
   import { onMount, untrack } from 'svelte';
   import type { ItemsRepo } from '../data/items-repo';
   import type { ListsRepo } from '../data/lists-repo';
-  import { dayKey, weekStartKey } from '../domain/dates';
-  import type { Item, ItemType } from '../domain/items';
-  import type { List } from '../domain/lists';
-  import type { Result } from '../domain/result';
-  import { buildToday, type TodayRow } from '../domain/today';
-  import { latestDayInWeek, type TargetPoint } from '../domain/weekly';
+  import { buildToday } from '../domain/today';
   import type { Clock } from '../platform/clock';
-  import HabitForm from './HabitForm.svelte';
-  import HabitRow from './HabitRow.svelte';
-  import WeeklyRow from './WeeklyRow.svelte';
-
-  type FormValues = { title: string; listId: string; type: ItemType; target: number };
-  type FormState = { kind: 'new' } | { kind: 'edit'; row: TodayRow };
+  import { Board } from './board.svelte';
+  import BoardSheet from './BoardSheet.svelte';
+  import ItemRows from './ItemRows.svelte';
 
   let {
     listsRepo,
     itemsRepo,
     clock,
-  }: { listsRepo: ListsRepo; itemsRepo: ItemsRepo; clock: Clock } = $props();
+    lingerMs,
+  }: { listsRepo: ListsRepo; itemsRepo: ItemsRepo; clock: Clock; lingerMs?: number } = $props();
 
-  let now = $state(untrack(() => clock.now()));
-  let lists = $state<List[]>([]);
-  let items = $state<Item[]>([]);
-  let days = $state<Record<string, string[]>>({});
-  let targets = $state<Record<string, TargetPoint[]>>({});
-  let loaded = $state(false);
-  let notice = $state('');
-  let form = $state<FormState | null>(null);
-  let formError = $state('');
+  const board = untrack(() => new Board({ listsRepo, itemsRepo, clock, lingerMs }));
 
-  const today = $derived(dayKey(now));
   const groups = $derived(
-    buildToday({ lists, items, completionDays: days, targets, today }),
+    buildToday({
+      lists: board.lists,
+      items: board.items,
+      completionDays: board.days,
+      targets: board.targets,
+      today: board.today,
+      lingering: board.lingering,
+    }),
   );
   const dateLabel = $derived(
-    now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
+    board.now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
   );
 
-  /** Shows what is actually in storage, or the first thing that could not be read. */
-  async function refresh() {
-    const [listResult, itemResult, dayResult, targetResult] = await Promise.all([
-      listsRepo.getAll(),
-      itemsRepo.listActive(),
-      itemsRepo.completionDays(),
-      itemsRepo.listTargets(),
-    ]);
-    if (!listResult.ok) {
-      notice = listResult.error;
-    } else if (!itemResult.ok) {
-      notice = itemResult.error;
-    } else if (!dayResult.ok) {
-      notice = dayResult.error;
-    } else if (!targetResult.ok) {
-      notice = targetResult.error;
-    } else {
-      lists = listResult.value;
-      items = itemResult.value;
-      days = dayResult.value;
-      targets = targetResult.value;
-      notice = '';
-      loaded = true;
-    }
-  }
-
-  async function start() {
-    // The starter lists must exist before anyone can add a habit, and Today is the
-    // first screen. If seeding fails, the load below fails too and reports it.
-    await listsRepo.ensureStarterLists();
-    await refresh();
-  }
-
-  onMount(() => {
-    const stopWatching = clock.watch((next) => {
-      now = next;
-    });
-    void start();
-    return stopWatching;
-  });
-
-  /**
-   * Reads the clock at tap time: the screen may still show yesterday (or last week) just
-   * after midnight, and the tap belongs to the real day. Returns that day.
-   */
-  function stampNow(): string {
-    const current = clock.now();
-    now = current;
-    return dayKey(current);
-  }
-
-  /** Updates the screen at once, then saves; puts it back if saving fails. */
-  async function applyOptimistic(
-    itemId: string,
-    before: string[],
-    next: string[],
-    save: () => Promise<Result<unknown>>,
-  ) {
-    days = { ...days, [itemId]: next };
-    const result = await save();
-    if (!result.ok) {
-      days = { ...days, [itemId]: before };
-      notice = result.error;
-    }
-  }
-
-  async function toggle(itemId: string) {
-    const day = stampNow();
-    const before = days[itemId] ?? [];
-    const next = before.includes(day) ? before.filter((d) => d !== day) : [...before, day];
-    await applyOptimistic(itemId, before, next, () => itemsRepo.toggleDay(itemId, day));
-  }
-
-  async function logWeekly(itemId: string) {
-    const day = stampNow();
-    const before = days[itemId] ?? [];
-    await applyOptimistic(itemId, before, [...before, day], () =>
-      itemsRepo.addCompletion(itemId, day),
-    );
-  }
-
-  async function undoWeekly(itemId: string) {
-    const weekStart = weekStartKey(stampNow());
-    const before = days[itemId] ?? [];
-    const latest = latestDayInWeek(before, weekStart);
-    if (latest === undefined) return; // nothing logged in the week the clock is really in
-    const index = before.lastIndexOf(latest);
-    await applyOptimistic(
-      itemId,
-      before,
-      before.filter((_, i) => i !== index),
-      () => itemsRepo.removeLatestCompletion(itemId, weekStart),
-    );
-  }
-
-  function openForm(next: FormState) {
-    formError = '';
-    form = next;
-  }
-
-  async function save(current: FormState, values: FormValues) {
-    const result =
-      current.kind === 'edit'
-        ? await itemsRepo.update(current.row.item.id, {
-            title: values.title,
-            listId: values.listId,
-            ...(current.row.kind === 'weekly' ? { target: values.target } : {}),
-          })
-        : await itemsRepo.create(values);
-    await finishForm(result);
-  }
-
-  async function remove(itemId: string) {
-    await finishForm(await itemsRepo.archive(itemId));
-  }
-
-  /** Closes the sheet and refreshes on success; otherwise keeps it open with the error. */
-  async function finishForm(result: Result<unknown>) {
-    if (!result.ok) {
-      formError = result.error;
-      return;
-    }
-    form = null;
-    await refresh();
-  }
-
-  function editValues(row: TodayRow): FormValues {
-    return {
-      title: row.item.title,
-      listId: row.item.listId,
-      type: row.item.type,
-      target: row.kind === 'weekly' ? row.target : 3,
-    };
-  }
+  onMount(() => board.mount());
 </script>
 
 <header class="bar">
@@ -181,13 +39,18 @@
     <p class="date">{dateLabel}</p>
     <h1>Today</h1>
   </div>
-  <button type="button" class="add" aria-label="New habit" onclick={() => openForm({ kind: 'new' })}>
+  <button
+    type="button"
+    class="add"
+    aria-label="New habit"
+    onclick={() => board.openForm({ kind: 'new' })}
+  >
     +
   </button>
 </header>
 
-{#if notice}
-  <p class="notice" role="status">{notice}</p>
+{#if board.notice}
+  <p class="notice" role="status">{board.notice}</p>
 {/if}
 
 {#each groups as group (group.list.id)}
@@ -196,44 +59,17 @@
       <span class="icon" aria-hidden="true">{group.list.emoji}</span>
       <span class="name">{group.list.name}</span>
     </h2>
-    <ul class="rows">
-      {#each group.rows as row (row.item.id)}
-        {#if row.kind === 'daily'}
-          <HabitRow
-            {row}
-            onToggle={() => toggle(row.item.id)}
-            onEdit={() => openForm({ kind: 'edit', row })}
-          />
-        {:else}
-          <WeeklyRow
-            {row}
-            onLog={() => logWeekly(row.item.id)}
-            onUndo={() => undoWeekly(row.item.id)}
-            onEdit={() => openForm({ kind: 'edit', row })}
-          />
-        {/if}
-      {/each}
-    </ul>
+    <ItemRows rows={group.rows} {board} />
   </section>
 {:else}
-  {#if loaded}
+  {#if board.loaded}
     <section class="empty">
       <p>Nothing here yet. Tap + to add your first habit or to-do.</p>
     </section>
   {/if}
 {/each}
 
-{#if form}
-  {@const current = form}
-  <HabitForm
-    {lists}
-    error={formError}
-    initial={current.kind === 'edit' ? editValues(current.row) : undefined}
-    onSubmit={(values) => save(current, values)}
-    onCancel={() => (form = null)}
-    onDelete={current.kind === 'edit' ? () => remove(current.row.item.id) : undefined}
-  />
-{/if}
+<BoardSheet {board} />
 
 <style>
   .bar {
@@ -284,18 +120,6 @@
     font-size: 0.9375rem;
     font-weight: 700;
     color: var(--text-secondary);
-  }
-  .rows {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    overflow: hidden;
-    border-radius: 12px;
-    background: var(--surface);
-  }
-  /* Each row is its own component, so the divider is drawn from here. */
-  .rows :global(li + li) {
-    border-top: 1px solid var(--separator);
   }
   .empty {
     margin-top: 3rem;

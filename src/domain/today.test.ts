@@ -3,7 +3,15 @@ import { addDaysToKey } from './dates';
 import type { Item } from './items';
 import type { List } from './lists';
 import { fastestOf } from '../testing/timing';
-import { buildToday, type DailyRow, type TodayGroup, type TodayRow, type WeeklyRow } from './today';
+import {
+  buildListView,
+  buildToday,
+  type DailyRow,
+  type TodayGroup,
+  type TodayRow,
+  type TodoRow,
+  type WeeklyRow,
+} from './today';
 
 const list = (id: string, name: string, order: number): List => ({
   id,
@@ -23,6 +31,11 @@ const goal = (id: string, listId: string, order: number, title = id): Item => ({
   ...habit(id, listId, order, title),
   type: 'weekly',
 });
+const todo = (id: string, listId: string, order: number, extra: Partial<Item> = {}): Item => ({
+  ...habit(id, listId, order),
+  type: 'todo',
+  ...extra,
+});
 
 // 2026-10-14 is a Wednesday, in the week that started on Sunday 2026-10-11.
 const today = '2026-10-14';
@@ -38,6 +51,66 @@ const asWeekly = (row: TodayRow) => {
   expect(row.kind).toBe('weekly');
   return row as WeeklyRow;
 };
+const asTodo = (row: TodayRow) => {
+  expect(row.kind).toBe('todo');
+  return row as TodoRow;
+};
+
+describe('buildListView', () => {
+  const items: Item[] = [
+    habit('meditate', 'me', 0),
+    goal('read', 'me', 1),
+    todo('flights', 'me', 2, { dueDate: '2026-10-20' }),
+    todo('garage', 'me', 3),
+    todo('overdue', 'me', 4, { dueDate: '2026-10-10' }),
+    todo('done-old', 'me', 5, { completedAt: 10 }),
+    todo('done-new', 'me', 6, { completedAt: 20 }),
+    todo('lingering', 'me', 7, { completedAt: 30 }),
+    todo('other-list', 'fit', 0),
+  ];
+  const view = buildListView({
+    list: personal,
+    items,
+    completionDays: {},
+    targets: { read: [{ effectiveWeekStart: '2026-10-11', target: 2 }] },
+    today,
+    lingering: new Set(['lingering']),
+  });
+
+  it('shows habits and goals, then every open to-do in due order including future ones', () => {
+    expect(view.rows.map((r) => r.item.id)).toEqual([
+      'meditate',
+      'read',
+      'overdue',
+      'flights',
+      'garage',
+      'lingering',
+    ]);
+    expect(asTodo(view.rows[3]!).due).toEqual({ text: 'Tue', overdue: false });
+  });
+
+  it('keeps a lingering to-do in the open rows, checked', () => {
+    expect(asTodo(view.rows.find((r) => r.item.id === 'lingering')!).done).toBe(true);
+  });
+
+  it('lists completed to-dos most recent first, without the lingering one', () => {
+    expect(view.completed.map((r) => [r.item.id, r.done])).toEqual([
+      ['done-new', true],
+      ['done-old', true],
+    ]);
+  });
+
+  it('ignores other lists and handles an empty list', () => {
+    const empty = buildListView({
+      list: work,
+      items,
+      completionDays: {},
+      targets: {},
+      today,
+    });
+    expect(empty).toEqual({ rows: [], completed: [] });
+  });
+});
 
 describe('buildToday', () => {
   it('returns nothing when there are no habits', () => {
@@ -142,15 +215,65 @@ describe('buildToday', () => {
     expect(asWeekly(groups[0]!.rows[0]!)).toMatchObject({ count: 0, target: 1, streak: 0 });
   });
 
-  it('does not show to-dos yet', () => {
+  it('shows to-dos due today, overdue or undated after the habits, earliest due first', () => {
     const groups = buildToday({
       lists: [fitness],
-      items: [habit('keep', 'fit', 0), { ...habit('task', 'fit', 1), type: 'todo' }],
+      items: [
+        todo('undated', 'fit', 0),
+        habit('keep', 'fit', 5),
+        todo('due-today', 'fit', 1, { dueDate: today }),
+        todo('overdue', 'fit', 2, { dueDate: '2026-10-12' }),
+        todo('future', 'fit', 3, { dueDate: '2026-10-20' }),
+        todo('done', 'fit', 4, { completedAt: 1 }),
+      ],
       completionDays: {},
       targets: {},
       today,
     });
-    expect(groups[0]!.rows.map((r) => r.item.id)).toEqual(['keep']);
+    expect(groups[0]!.rows.map((r) => r.item.id)).toEqual([
+      'keep',
+      'overdue',
+      'due-today',
+      'undated',
+    ]);
+    expect(asTodo(groups[0]!.rows[1]!)).toMatchObject({
+      done: false,
+      due: { text: '2 days overdue', overdue: true },
+    });
+    expect(asTodo(groups[0]!.rows[3]!).due).toBeUndefined();
+  });
+
+  it('keeps a just-completed to-do on Today, checked, while it lingers', () => {
+    const groups = buildToday({
+      lists: [fitness],
+      items: [todo('done', 'fit', 0, { completedAt: 1 }), todo('old', 'fit', 1, { completedAt: 2 })],
+      completionDays: {},
+      targets: {},
+      today,
+      lingering: new Set(['done']),
+    });
+    expect(groups[0]!.rows.map((r) => [r.item.id, asTodo(r).done])).toEqual([['done', true]]);
+  });
+
+  it('shows a list that only has to-dos', () => {
+    const groups = buildToday({
+      lists: [fitness],
+      items: [todo('task', 'fit', 0)],
+      completionDays: {},
+      targets: {},
+      today,
+    });
+    expect(groups.map((g) => g.list.name)).toEqual(['Fitness']);
+  });
+
+  it('computes 200 to-dos across lists in well under 50 ms', () => {
+    const items = Array.from({ length: 200 }, (_, i) =>
+      todo(`t${i}`, i % 2 ? 'fit' : 'work', i, i % 3 ? { dueDate: addDaysToKey(today, -i) } : {}),
+    );
+    const elapsed = fastestOf(5, () =>
+      buildToday({ lists: [fitness, work], items, completionDays: {}, targets: {}, today }),
+    );
+    expect(elapsed).toBeLessThan(50);
   });
 
   it('ignores habits whose list no longer exists', () => {

@@ -16,6 +16,10 @@ export interface ItemRecord {
   order: number;
   /** Set when archived (e.g. its list was deleted); history is kept. */
   archivedAt?: number;
+  /** To-dos only: local day it is due, YYYY-MM-DD. Not indexed, so no schema change. */
+  dueDate?: string;
+  /** To-dos only: when it was checked off. */
+  completedAt?: number;
 }
 
 export interface CompletionRecord {

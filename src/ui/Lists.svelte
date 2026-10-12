@@ -4,6 +4,7 @@
   import { LIST_COLORS, type Direction, type List, type ListInput } from '../domain/lists';
   import type { Result } from '../domain/result';
   import ListForm from './ListForm.svelte';
+  import { listHash } from './route';
 
   let { repo }: { repo: ListsRepo } = $props();
 
@@ -103,15 +104,25 @@
   <p class="notice" role="status">{notice}</p>
 {/if}
 
+{#snippet label(list: List)}
+  <span class="icon" style:background={LIST_COLORS[list.color]} aria-hidden="true">
+    {list.emoji}
+  </span>
+  <span class="name">{list.name}</span>
+{/snippet}
+
 {#if lists.length > 0}
   <ul class="rows">
     {#each lists as list, index (list.id)}
       <li class="row">
-        <span class="icon" style:background={LIST_COLORS[list.color]} aria-hidden="true">
-          {list.emoji}
-        </span>
-        <span class="name">{list.name}</span>
-        {#if editing}
+        {#if !editing}
+          <!-- Edit mode needs the row for its tools, so the row only opens the page outside it. -->
+          <a class="open" href={listHash(list.id)}>
+            {@render label(list)}
+            <span class="chevron" aria-hidden="true">›</span>
+          </a>
+        {:else}
+          {@render label(list)}
           <span class="tools">
             <button type="button" aria-label="Edit {list.name}" onclick={() => openForm(list)}>
               ✎
@@ -231,6 +242,22 @@
   }
   .row + .row {
     border-top: 1px solid var(--separator);
+  }
+  .open {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    min-height: 3rem;
+    color: var(--text);
+    text-decoration: none;
+  }
+  .chevron {
+    flex: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    line-height: 1;
   }
   .icon {
     flex: none;
