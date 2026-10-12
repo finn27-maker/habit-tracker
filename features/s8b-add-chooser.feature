@@ -1,3 +1,6 @@
+# SUPERSEDED 2026-10-12 by s8c-quick-todo-default.feature (scenario set 26c61182): the user asked
+# for + to default to a to-do due today, so the separate chooser screen was replaced by a Type
+# switch on the form. Kept for history.
 # S8 follow-up: Memento plan node 00854c6f / scenario set cecd029b
 # User request 2026-10-12: a one-time task was saved as a daily habit because Repeats defaulted
 # to "Every day" ("it was a daily habit, make adding ask habit or to-do first").
