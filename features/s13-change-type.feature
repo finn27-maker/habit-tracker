@@ -70,7 +70,7 @@ Feature: Change an item's type in Edit
   Scenario: The confirmation for a to-do becoming a habit
     Given the to-do "Stretch"
     When I open Edit, choose "Weekly goal" and tap "Save"
-    Then a confirmation reads "Change “Stretch” to a weekly goal? It starts with no check-ins. Its due date is kept and comes back if you change it back."
+    Then a confirmation reads "Change “Stretch” to a weekly goal? Its due date and checkmark are kept and come back if you change it back."
 
   @happy-path
   Scenario: Switching back brings the history back
