@@ -117,7 +117,8 @@ describe('round trip', () => {
     expect(await fresh.read()).toEqual(original);
   });
 
-  it('restores three years of history in under 3 seconds', async () => {
+  // Timed in e2e/backup.spec.ts against a real browser's IndexedDB; here only correctness.
+  it('restores three years of history', async () => {
     const { backup } = await setup();
     const big: BackupData = {
       ...restored,
@@ -128,9 +129,9 @@ describe('round trip', () => {
         createdAt: i,
       })),
     };
-    const started = performance.now();
     expect(await backup.restore(big)).toEqual({ ok: true, value: undefined });
-    expect(performance.now() - started).toBeLessThan(3000);
+    const after = await backup.read();
+    expect(after.ok && after.value.completions).toHaveLength(20000);
   });
 });
 

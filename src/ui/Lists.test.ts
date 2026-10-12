@@ -53,12 +53,15 @@ describe('Lists screen', () => {
     await screen.findByText('Fitness');
 
     expect(screen.getByRole('link', { name: 'Personal' })).toHaveAttribute('href', '#/list/id-4');
-    expect(screen.getAllByRole('link')).toHaveLength(4);
+    const listLinks = () =>
+      screen.queryAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('#/list/'));
+    expect(listLinks()).toHaveLength(4);
+    expect(screen.getByRole('link', { name: 'Recently deleted' })).toHaveAttribute('href', '#/deleted');
 
     expect(screen.queryByRole('button', { name: /^Reorder / })).toBeNull();
 
     await startEditing();
-    expect(screen.queryByRole('link')).toBeNull();
+    expect(listLinks()).toHaveLength(0);
     expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
   });
 
@@ -134,7 +137,10 @@ describe('Lists screen', () => {
     for (const label of ['Edit Fitness', 'Delete Fitness', 'Reorder Fitness']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
-    expect(screen.queryByRole('button', { name: /^Move / })).toBeNull();
+    // Move buttons exist only for VoiceOver: visually hidden, and none past either end.
+    expect(screen.getByRole('button', { name: 'Move Fitness down' })).toHaveClass('sr-only');
+    expect(screen.queryByRole('button', { name: 'Move Fitness up' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Move Personal down' })).toBeNull();
 
     await fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('button', { name: 'Edit Fitness' })).toBeNull();
@@ -292,6 +298,19 @@ describe('Lists screen', () => {
 
       expect(await screen.findByRole('status')).toHaveTextContent(SAVE_ERROR);
       expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+    });
+
+    it('reorders with the hidden Move buttons that VoiceOver reaches', async () => {
+      await renderEditing();
+      await fireEvent.click(screen.getByRole('button', { name: 'Move Work down' }));
+      await waitFor(() =>
+        expect(rowNames()).toEqual(['Fitness', 'Side Business', 'Work', 'Personal']),
+      );
+      await waitFor(() => expect(handle('Work')).toHaveFocus());
+      await fireEvent.click(screen.getByRole('button', { name: 'Move Work up' }));
+      await waitFor(() =>
+        expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']),
+      );
     });
 
     it('labels the handle with the name as plain text', async () => {

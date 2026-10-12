@@ -1,5 +1,8 @@
 import { addDaysToKey, dayKey, isDayKey, weekStartKey } from '../domain/dates';
+import { restoreTarget, type ArchivedItem } from '../domain/deleted';
 import { validateItemInput, type Item } from '../domain/items';
+import type { ListColor } from '../domain/lists';
+import { moveRecurring } from '../domain/order';
 import { err, ok, type Result } from '../domain/result';
 import { latestDayInWeek, targetInForce, type TargetPoint } from '../domain/weekly';
 import type { HabitDb, ItemRecord } from './db';
@@ -11,6 +14,8 @@ const LIST_NOT_FOUND = 'List not found';
 const ITEM_NOT_FOUND = 'Habit not found';
 const NOT_WEEKLY = 'Not a weekly goal';
 const NOT_TODO = 'Not a to-do';
+const NO_LIST = 'Create a list first, then restore.';
+const TODO_ORDER = 'To-dos follow their due dates';
 const INVALID_DAY = 'Invalid day';
 const FUTURE_DAY = "Pick a day that isn't in the future";
 
@@ -41,6 +46,17 @@ export interface ItemsRepo {
   ): Promise<Result<Item>>;
   /** To-dos: checks it off (stamping the time) or reopens it. */
   setTodoDone(itemId: string, done: boolean): Promise<Result<Item>>;
+  /** Deleted (archived) items, for Recently deleted. */
+  listArchived(): Promise<Result<ArchivedItem[]>>;
+  /**
+   * Un-deletes an item at the end of its list, or of the first list if its own was deleted
+   * (`movedTo` names that list). History was never removed, so streaks come back too.
+   */
+  restore(itemId: string): Promise<Result<{ item: Item; movedTo: string | null }>>;
+  /** Deletes (archives) a list's completed to-dos. Resolves to how many. */
+  clearCompleted(listId: string): Promise<Result<number>>;
+  /** Moves a habit or goal to place `index` among its list's habits and goals (clamped). */
+  moveTo(itemId: string, index: number): Promise<Result<void>>;
   /**
    * "Delete" from the user's point of view: hides the item everywhere but keeps its
    * completions and target history so a later History screen can show or restore it.
@@ -189,6 +205,59 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
           const record = done ? { ...item, completedAt: now() } : without(item, 'completedAt');
           await db.items.put(record);
           return ok(toItem(record));
+        }),
+      ),
+
+    listArchived: () =>
+      guard(ITEMS_LOAD_ERROR, async () => {
+        const records = await db.items.filter((item) => item.archivedAt !== undefined).toArray();
+        return ok(records.map((record) => ({ ...toItem(record), archivedAt: record.archivedAt! })));
+      }),
+
+    restore: (itemId) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.lists, db.items, async () => {
+          const record = await db.items.get(itemId);
+          if (!record || isActive(record)) return err(ITEM_NOT_FOUND);
+
+          const lists = (await db.lists.toArray()).map((list) => ({ ...list, color: list.color as ListColor }));
+          const target = restoreTarget({ ...toItem(record), archivedAt: record.archivedAt! }, lists);
+          if (!target) return err(NO_LIST);
+
+          const restored: ItemRecord = {
+            ...record,
+            listId: target.listId,
+            order: await nextOrder(target.listId),
+          };
+          delete restored.archivedAt;
+          await db.items.put(restored);
+          return ok({ item: toItem(restored), movedTo: target.movedTo });
+        }),
+      ),
+
+    clearCompleted: (listId) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, async () => {
+          const at = now();
+          const count = await db.items
+            .where('listId')
+            .equals(listId)
+            .filter((item) => isActive(item) && item.type === 'todo' && item.completedAt !== undefined)
+            .modify({ archivedAt: at });
+          return ok(count);
+        }),
+      ),
+
+    moveTo: (itemId, index) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, async () => {
+          const item = await db.items.get(itemId);
+          if (!item || !isActive(item)) return err(ITEM_NOT_FOUND);
+          if (item.type === 'todo') return err(TODO_ORDER);
+
+          const siblings = await db.items.where('listId').equals(item.listId).filter(isActive).toArray();
+          await db.items.bulkPut(moveRecurring(siblings, itemId, index));
+          return ok(undefined);
         }),
       ),
 

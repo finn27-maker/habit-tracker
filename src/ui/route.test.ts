@@ -6,6 +6,10 @@ describe('routeFromHash', () => {
     expect(routeFromHash('#/lists')).toBe('lists');
   });
 
+  it('maps #/deleted to Recently deleted', () => {
+    expect(routeFromHash('#/deleted')).toBe('deleted');
+  });
+
   it('maps #/list/<id> to a list page', () => {
     expect(routeFromHash('#/list/list-4')).toBe('list');
   });

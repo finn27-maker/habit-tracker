@@ -52,7 +52,7 @@
     padding: 0 1rem;
     border: 0;
     border-radius: 10px;
-    background: var(--accent);
+    background: var(--fill);
     color: #fff;
     font: inherit;
     font-weight: 600;

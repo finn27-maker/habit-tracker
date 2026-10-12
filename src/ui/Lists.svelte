@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount } from 'svelte';
   import type { ListsRepo } from '../data/lists-repo';
   import { LIST_COLORS, moveToIndex, type List, type ListInput } from '../domain/lists';
   import type { Result } from '../domain/result';
   import ListForm from './ListForm.svelte';
-  import { dropIndex, shiftFor } from './reorder';
+  import ReorderHandle from './ReorderHandle.svelte';
+  import { RowDrag } from './row-drag.svelte';
   import { listHash } from './route';
 
   let { repo }: { repo: ListsRepo } = $props();
@@ -78,62 +79,11 @@
     await settle(result);
   }
 
-  // --- Drag to reorder (Edit mode) ---
-
-  let drag = $state<{ id: string; from: number; startY: number; offset: number; rowHeight: number } | null>(
-    null,
+  // Drag to reorder (Edit mode).
+  const drag = new RowDrag(
+    () => lists.length,
+    (id, to) => moveTo(lists.find((list) => list.id === id)!, to),
   );
-  const target = $derived(
-    drag ? dropIndex(drag.from, drag.offset, drag.rowHeight, lists.length) : null,
-  );
-
-  function startDrag(event: PointerEvent, list: List, index: number) {
-    if (event.button !== 0) return; // a mouse's right button is not a drag
-    const handle = event.currentTarget as HTMLElement;
-    // Keep receiving moves even when the finger leaves the small handle.
-    handle.setPointerCapture?.(event.pointerId);
-    drag = {
-      id: list.id,
-      from: index,
-      startY: event.clientY,
-      offset: 0,
-      rowHeight: handle.closest('li')!.getBoundingClientRect().height,
-    };
-  }
-
-  function followDrag(event: PointerEvent) {
-    if (drag) drag.offset = event.clientY - drag.startY;
-  }
-
-  async function endDrag() {
-    if (!drag || target === null) return;
-    const { from } = drag;
-    const to = target;
-    const list = lists[from]!;
-    drag = null;
-    if (to !== from) await moveTo(list, to);
-  }
-
-  /** The vertical shift for a row while something is being dragged. */
-  function rowShift(index: number): string | undefined {
-    if (!drag || target === null) return undefined;
-    const pixels =
-      index === drag.from ? drag.offset : shiftFor(index, drag.from, target, drag.rowHeight);
-    return pixels === 0 ? undefined : `translateY(${pixels}px)`;
-  }
-
-  /** Arrow keys on the handle move the list one place, for people not using touch. */
-  async function nudge(event: KeyboardEvent, list: List, index: number) {
-    const step = event.key === 'ArrowUp' ? -1 : event.key === 'ArrowDown' ? 1 : 0;
-    if (step === 0) return;
-    event.preventDefault();
-    const to = index + step;
-    if (to < 0 || to >= lists.length) return;
-    await moveTo(list, to);
-    await tick();
-    // Moving the row can drop focus; keep it on this handle so the keys keep working.
-    document.querySelector<HTMLElement>(`[data-reorder="${CSS.escape(list.id)}"]`)?.focus();
-  }
 
   async function askDelete(list: List) {
     const count = await repo.openItemCount(list.id);
@@ -184,9 +134,9 @@
     {#each lists as list, index (list.id)}
       <li
         class="row"
-        class:dragging={drag?.id === list.id}
-        class:settling={drag !== null && drag.id !== list.id}
-        style:transform={rowShift(index)}
+        class:dragging={drag.isDragging(list.id)}
+        class:settling={drag.isMakingRoom(list.id)}
+        style:transform={drag.shift(index)}
       >
         {#if !editing}
           <!-- Edit mode needs the row for its tools, so the row only opens the page outside it. -->
@@ -208,19 +158,14 @@
             >
               🗑
             </button>
-            <button
-              type="button"
-              class="handle"
-              aria-label="Reorder {list.name}"
-              data-reorder={list.id}
-              onpointerdown={(event) => startDrag(event, list, index)}
-              onpointermove={followDrag}
-              onpointerup={endDrag}
-              onpointercancel={() => (drag = null)}
-              onkeydown={(event) => nudge(event, list, index)}
-            >
-              ☰
-            </button>
+            <ReorderHandle
+              id={list.id}
+              name={list.name}
+              {index}
+              count={lists.length}
+              {drag}
+              onMove={(to) => moveTo(list, to)}
+            />
           </span>
         {/if}
       </li>
@@ -229,6 +174,11 @@
 {:else if loaded}
   <p class="empty">No lists yet. Tap + to create one.</p>
 {/if}
+
+<a class="deleted-link" href="#/deleted">
+  <span>Recently deleted</span>
+  <span class="chevron" aria-hidden="true">›</span>
+</a>
 
 {#if form}
   {@const current = form}
@@ -362,12 +312,17 @@
   .tools .danger {
     color: var(--danger);
   }
-  .tools .handle {
-    color: var(--text-secondary);
-    font-size: 1.25rem;
-    cursor: grab;
-    /* The handle's drag must move the row, not scroll the page. */
-    touch-action: none;
+  .deleted-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 3rem;
+    margin-top: 1rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
   }
   .row.dragging {
     position: relative;
@@ -416,7 +371,7 @@
     min-height: 44px;
     border: 0;
     border-radius: 10px;
-    background: var(--accent);
+    background: var(--fill);
     color: #fff;
     font: inherit;
     font-weight: 600;
@@ -426,6 +381,6 @@
     color: var(--text);
   }
   .buttons .destructive {
-    background: var(--danger);
+    background: var(--danger-fill);
   }
 </style>

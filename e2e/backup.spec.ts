@@ -112,6 +112,37 @@ test('a file that is not a backup is refused and nothing changes', async ({ page
   await expect(page.locator('.name')).toHaveText(['Fitness', 'Work', 'Side Business', 'Personal']);
 });
 
+test('three years of history restores in under 3 seconds', async ({ page }) => {
+  await stubShare(page, true);
+  await page.goto('./');
+  await openLists(page);
+  const data = {
+    lists: [{ id: 'r1', name: 'Reading', emoji: '📚', color: 'teal', order: 0 }],
+    items: [{ id: 'h1', listId: 'r1', type: 'daily', title: 'Read', order: 0 }],
+    completions: Array.from({ length: 20000 }, (_, i) => ({
+      id: `c${i}`,
+      itemId: 'h1',
+      dayKey: new Date(Date.UTC(2023, 9, 1 + (i % 1100))).toISOString().slice(0, 10),
+      createdAt: i,
+    })),
+    targetHistory: [],
+  };
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'big.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(
+      JSON.stringify({ app: 'habit-tracker', version: 1, exportedAt: '2026-10-12T20:00:00.000Z', data }),
+    ),
+  });
+  const replace = page.getByRole('alertdialog').getByRole('button', { name: 'Replace' });
+  await expect(replace).toBeVisible();
+
+  const started = Date.now();
+  await replace.click();
+  await expect(page.getByText(/^Restored the backup from /)).toBeVisible({ timeout: 10_000 });
+  expect(Date.now() - started).toBeLessThan(3000);
+});
+
 test('backup controls are large enough, and Not now hides the reminder', async ({ page }) => {
   await stubShare(page, true);
   await page.goto('./');

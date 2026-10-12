@@ -4,6 +4,7 @@ import type { ListsRepo } from '../data/lists-repo';
 import { dayKey, weekStartKey } from '../domain/dates';
 import type { Item, ItemType } from '../domain/items';
 import type { List } from '../domain/lists';
+import { moveRecurring } from '../domain/order';
 import type { Result } from '../domain/result';
 import type { TodayRow } from '../domain/today';
 import { latestDayInWeek, type TargetPoint } from '../domain/weekly';
@@ -229,6 +230,34 @@ export class Board {
     clearTimeout(this.#timers[itemId]);
     delete this.#timers[itemId];
     this.lingering.delete(itemId);
+  }
+
+  /** Deletes a list's completed to-dos (they go to Recently deleted). */
+  async clearCompleted(listId: string) {
+    const result = await this.#deps.itemsRepo.clearCompleted(listId);
+    if (!result.ok) {
+      this.notice = result.error;
+      return;
+    }
+    await this.refresh();
+  }
+
+  /** Moves a habit or goal within its list: shown at once, put back if saving fails. */
+  async moveItem(itemId: string, to: number) {
+    const item = this.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const before = this.items;
+    const moved = moveRecurring(
+      before.filter((other) => other.listId === item.listId),
+      itemId,
+      to,
+    );
+    this.items = before.map((other) => moved.find((next) => next.id === other.id) ?? other);
+    const result = await this.#deps.itemsRepo.moveTo(itemId, to);
+    if (!result.ok) {
+      this.items = before;
+      this.notice = result.error;
+    }
   }
 
   openForm(next: FormState) {

@@ -9,7 +9,7 @@
     <span class="icon" aria-hidden="true">☀️</span>
     Today
   </a>
-  <a href="#/lists" aria-current={current === 'lists' || current === 'list' ? 'page' : undefined}>
+  <a href="#/lists" aria-current={current === 'today' ? undefined : 'page'}>
     <span class="icon" aria-hidden="true">☰</span>
     Lists
   </a>

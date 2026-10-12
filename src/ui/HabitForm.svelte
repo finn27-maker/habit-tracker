@@ -166,7 +166,7 @@
     overflow-wrap: anywhere;
   }
   .buttons .danger {
-    background: var(--danger);
+    background: var(--danger-fill);
   }
   .delete {
     width: 100%;

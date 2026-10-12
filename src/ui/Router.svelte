@@ -8,6 +8,7 @@
   import { BackupState } from './backup.svelte';
   import BackupBanner from './BackupBanner.svelte';
   import BackupSection from './BackupSection.svelte';
+  import DeletedPage from './DeletedPage.svelte';
   import ItemPage from './ItemPage.svelte';
   import ListPage from './ListPage.svelte';
   import Lists from './Lists.svelte';
@@ -67,6 +68,8 @@
     {#key listId}
       <ListPage listId={listId!} {listsRepo} {itemsRepo} {clock} />
     {/key}
+  {:else if route === 'deleted'}
+    <DeletedPage {listsRepo} {itemsRepo} {clock} />
   {:else if route === 'item'}
     {#key itemId}
       <ItemPage itemId={itemId!} {backHref} {listsRepo} {itemsRepo} {clock} />

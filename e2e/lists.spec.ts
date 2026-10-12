@@ -97,7 +97,14 @@ test('dragging a list to the top reorders Today too, and the handle never scroll
   // With habits saved, the backup reminder appears above the lists; let the layout settle.
   await expect(page.getByRole('complementary', { name: 'Backup reminder' })).toBeVisible();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
-  await expect(page.getByRole('button', { name: /^Move / })).toHaveCount(0);
+  // The Move buttons are there for VoiceOver only: 1 px until focused, full size once focused.
+  const moveDown = page.getByRole('button', { name: 'Move Fitness down' });
+  expect((await moveDown.boundingBox())!.width).toBeLessThanOrEqual(1);
+  await moveDown.focus();
+  const focused = (await moveDown.boundingBox())!;
+  expect(focused.width).toBeGreaterThanOrEqual(43.5);
+  expect(focused.height).toBeGreaterThanOrEqual(43.5);
+  await moveDown.blur();
   const handle = page.getByRole('button', { name: 'Reorder Personal' });
   await expect(handle).toHaveCSS('touch-action', 'none');
 
@@ -130,7 +137,7 @@ test('deleting a starter list sticks, and the starters never come back', async (
 test('every control is at least 44 by 44 pixels', async ({ page }) => {
   await page.goto('./#/lists');
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
-  const controls = page.locator('.tools button, nav a, .actions button');
+  const controls = page.locator('.tools button:not(.sr-only), nav a, .actions button');
   const count = await controls.count();
   expect(count).toBeGreaterThan(8);
   for (let i = 0; i < count; i++) {

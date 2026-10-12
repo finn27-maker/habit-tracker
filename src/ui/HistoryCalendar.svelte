@@ -133,7 +133,7 @@
     font-variant-numeric: tabular-nums;
   }
   .day.done {
-    background: var(--accent);
+    background: var(--fill);
     color: #fff;
     font-weight: 700;
   }

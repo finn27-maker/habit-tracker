@@ -36,10 +36,6 @@
     gap: 0.25rem;
     min-height: 3.5rem;
     padding: 0 0.75rem 0 0.5rem;
-    transition: opacity 0.4s ease;
-  }
-  .row.done {
-    opacity: 0.55;
   }
   .check {
     flex: none;
@@ -64,7 +60,7 @@
   }
   .circle.done {
     border-color: var(--accent);
-    background: var(--accent);
+    background: var(--fill);
   }
   .name {
     flex: 1;
@@ -79,7 +75,12 @@
     text-align: left;
     overflow-wrap: anywhere;
   }
+  .name {
+    transition: color 0.4s ease;
+  }
+  /* Faded but still readable: secondary text keeps 4.5:1 contrast in both schemes. */
   .done .name {
+    color: var(--text-secondary);
     text-decoration: line-through;
   }
   .due {

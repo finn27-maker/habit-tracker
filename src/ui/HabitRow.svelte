@@ -61,7 +61,7 @@
   }
   .circle.done {
     border-color: var(--accent);
-    background: var(--accent);
+    background: var(--fill);
   }
   .name {
     flex: 1;

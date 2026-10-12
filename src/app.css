@@ -5,9 +5,13 @@
   --text: #1c1c1e;
   --text-secondary: #5c5c63;
   --accent: #0a64d8;
+  /* Background of filled controls with white text (keeps 4.5:1 in both schemes). */
+  --fill: #0a64d8;
   --accent-soft: #dceafd;
   --separator: #d8d8de;
   --danger: #c4261b;
+  /* Background of red buttons with white text (keeps 4.5:1 in both schemes). */
+  --danger-fill: #c4261b;
   --success: #1f8a3b;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
   font-size: 100%;
@@ -22,6 +26,7 @@
     --text: #f2f2f7;
     --text-secondary: #aeaeb4;
     --accent: #4c9bff;
+    --fill: #1f6fd6;
     --accent-soft: #10284a;
     --separator: #38383a;
     --danger: #ff7b72;
@@ -29,8 +34,34 @@
   }
 }
 
+/*
+ * Follow the iPhone's text-size setting (Dynamic Type): every size is in rem, so the whole
+ * app scales from this. Only on iOS (-webkit-touch-callout exists only there): macOS renders
+ * the same keyword at 13px. The font shorthand also sets the typeface, so restore ours.
+ */
+@supports (font: -apple-system-body) and (-webkit-touch-callout: none) {
+  :root {
+    font: -apple-system-body;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', system-ui, sans-serif;
+    line-height: 1.4;
+  }
+}
+
 * {
   box-sizing: border-box;
+}
+
+/* Hidden from sight but not from VoiceOver; shown full size once focused. */
+.sr-only:not(:focus, :focus-within) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 html,
@@ -94,7 +125,7 @@ main {
   min-height: 44px;
   border: 0;
   border-radius: 10px;
-  background: var(--accent);
+  background: var(--fill);
   color: #fff;
   font: inherit;
   font-weight: 600;

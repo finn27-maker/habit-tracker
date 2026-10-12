@@ -620,6 +620,109 @@ describe('to-dos', () => {
   });
 });
 
+describe('recently deleted', () => {
+  it('lists archived items with when they were deleted', async () => {
+    const { items } = await setup();
+    await items.create(meditate);
+    await items.create({ ...meditate, title: 'Read' });
+    await items.archive('item-1');
+    expect(await items.listArchived()).toEqual({
+      ok: true,
+      value: [{ id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 0, archivedAt: NOW }],
+    });
+  });
+
+  it('restores an item to the end of its list, keeping its history', async () => {
+    const { items, db } = await setup();
+    await items.create(meditate);
+    await items.toggleDay('item-1', '2026-10-13');
+    await items.archive('item-1');
+    await items.create({ ...meditate, title: 'Read' });
+
+    expect(await items.restore('item-1')).toEqual({
+      ok: true,
+      value: {
+        item: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 1 },
+        movedTo: null,
+      },
+    });
+    expect(await db.items.get('item-1')).not.toHaveProperty('archivedAt');
+    expect(await db.completions.count()).toBe(1);
+  });
+
+  it('restores into the first list when its own list was deleted', async () => {
+    const { items, lists } = await setup();
+    await items.create({ ...meditate, listId: 'list-3' });
+    await lists.remove('list-3');
+
+    const restored = await items.restore('item-1');
+    expect(restored.ok && restored.value.movedTo).toBe('Fitness');
+    expect(restored.ok && restored.value.item.listId).toBe('list-1');
+  });
+
+  it('needs a list to restore into', async () => {
+    const { items, lists } = await setup();
+    await items.create(meditate);
+    for (const id of ['list-1', 'list-2', 'list-3', 'list-4']) await lists.remove(id);
+    expect(await items.restore('item-1')).toEqual({ ok: false, error: 'Create a list first, then restore.' });
+  });
+
+  it('refuses items that are not deleted', async () => {
+    const { items } = await setup();
+    await items.create(meditate);
+    expect(await items.restore('item-1')).toEqual({ ok: false, error: 'Habit not found' });
+    expect(await items.restore('nope')).toEqual({ ok: false, error: 'Habit not found' });
+  });
+});
+
+describe('clearCompleted', () => {
+  it('archives only this list’s completed to-dos and says how many', async () => {
+    const { items, db } = await setup();
+    const todo = { title: 'A', listId: 'list-4', type: 'todo' };
+    await items.create(todo);
+    await items.create({ ...todo, title: 'B' });
+    await items.create({ ...todo, title: 'Open' });
+    await items.create({ ...todo, title: 'Elsewhere', listId: 'list-2' });
+    await items.create(meditate);
+    for (const id of ['item-1', 'item-2', 'item-4']) await items.setTodoDone(id, true);
+
+    expect(await items.clearCompleted('list-4')).toEqual({ ok: true, value: 2 });
+    const archived = (await db.items.toArray()).filter((item) => item.archivedAt !== undefined);
+    expect(archived.map((item) => item.title).sort()).toEqual(['A', 'B']);
+    expect(await items.clearCompleted('list-4')).toEqual({ ok: true, value: 0 });
+  });
+});
+
+describe('moveTo', () => {
+  it('reorders habits and goals within their list, keeping to-dos after them', async () => {
+    const { items } = await setup();
+    await items.create({ ...meditate, title: 'Stretch', listId: 'list-1' });
+    await items.create({ title: 'Buy shoes', listId: 'list-1', type: 'todo' });
+    await items.create({ title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 });
+    await items.create({ ...meditate, title: 'Run', listId: 'list-1' });
+
+    expect(await items.moveTo('item-3', 0)).toEqual({ ok: true, value: undefined });
+    const all = await items.listActive();
+    expect(all.ok && all.value.map((item) => item.title)).toEqual(['Peloton ride', 'Stretch', 'Run', 'Buy shoes']);
+
+    await items.moveTo('item-3', 9);
+    const after = await items.listActive();
+    expect(after.ok && after.value.map((item) => item.title)).toEqual(['Stretch', 'Run', 'Peloton ride', 'Buy shoes']);
+  });
+
+  it('leaves other lists alone and refuses to-dos and missing items', async () => {
+    const { items } = await setup();
+    await items.create({ ...meditate, listId: 'list-1' });
+    await items.create({ ...meditate, title: 'Read' });
+    await items.create({ title: 'Buy shoes', listId: 'list-1', type: 'todo' });
+
+    await items.moveTo('item-1', 0);
+    expect((await items.listActive()).ok).toBe(true);
+    expect(await items.moveTo('item-3', 0)).toEqual({ ok: false, error: 'To-dos follow their due dates' });
+    expect(await items.moveTo('nope', 0)).toEqual({ ok: false, error: 'Habit not found' });
+  });
+});
+
 describe('storage failures', () => {
   it('return a failed Result instead of throwing', async () => {
     const { items, db } = await setup();
@@ -646,6 +749,10 @@ describe('storage failures', () => {
       ok: false,
       error: SAVE_ERROR,
     });
+    expect(await items.restore('item-1')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.clearCompleted('list-1')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.moveTo('item-1', 0)).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.listArchived()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.listActive()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.completionDays()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.listTargets()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
