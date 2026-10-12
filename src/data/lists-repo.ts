@@ -1,8 +1,7 @@
 import {
   STARTER_LISTS,
-  moveInOrder,
+  moveToIndex,
   validateListInput,
-  type Direction,
   type List,
   type ListColor,
 } from '../domain/lists';
@@ -27,7 +26,8 @@ export interface ListsRepo {
   getAll(): Promise<Result<List[]>>;
   create(input: { name: string; emoji: string; color: string }): Promise<Result<List>>;
   update(id: string, input: { name: string; emoji: string; color: string }): Promise<Result<List>>;
-  move(id: string, direction: Direction): Promise<Result<List[]>>;
+  /** Moves a list to place `index` (0 = first, clamped) and returns the new order. */
+  moveTo(id: string, index: number): Promise<Result<List[]>>;
   /** Deletes the list and archives (never deletes) its items. */
   remove(id: string): Promise<Result<void>>;
   openItemCount(id: string): Promise<Result<number>>;
@@ -78,16 +78,16 @@ export function createListsRepo(db: HabitDb, deps: ListsRepoDeps = {}): ListsRep
       });
     },
 
-    move: (id, direction) =>
+    moveTo: (id, index) =>
       guard(SAVE_ERROR, () =>
         db.transaction('rw', db.lists, async () => {
           const all = await ordered();
           if (!all.some((list) => list.id === id)) return err(NOT_FOUND);
           const byId = new Map(all.map((list) => [list.id, list]));
-          const reordered = moveInOrder(
+          const reordered = moveToIndex(
             all.map((list) => list.id),
             id,
-            direction,
+            index,
           ).map((listId, order) => ({ ...byId.get(listId)!, order }));
           await db.lists.bulkPut(reordered);
           return ok(reordered.map(toList));

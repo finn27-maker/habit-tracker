@@ -28,6 +28,27 @@ export function completedTodoCount(page: Page): Promise<number> {
   );
 }
 
+/** List names in stored order. Same reason as above: wait for this before reloading. */
+export function storedListNames(page: Page): Promise<string[]> {
+  return page.evaluate(
+    () =>
+      new Promise<string[]>((resolve, reject) => {
+        const open = indexedDB.open('habit-tracker');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const request = db.transaction('lists').objectStore('lists').getAll();
+          request.onsuccess = () => {
+            db.close();
+            const lists = request.result as { name: string; order: number }[];
+            resolve(lists.sort((a, b) => a.order - b.order).map((list) => list.name));
+          };
+          request.onerror = () => reject(request.error);
+        };
+      }),
+  );
+}
+
 function storeCount(page: Page, store: string): Promise<number> {
   return page.evaluate(
     (name) =>

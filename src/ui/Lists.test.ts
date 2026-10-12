@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDb } from '../data/db';
 import { LOAD_ERROR, SAVE_ERROR, createListsRepo } from '../data/lists-repo';
 import { LIST_COLORS } from '../domain/lists';
@@ -54,6 +54,8 @@ describe('Lists screen', () => {
 
     expect(screen.getByRole('link', { name: 'Personal' })).toHaveAttribute('href', '#/list/id-4');
     expect(screen.getAllByRole('link')).toHaveLength(4);
+
+    expect(screen.queryByRole('button', { name: /^Reorder / })).toBeNull();
 
     await startEditing();
     expect(screen.queryByRole('link')).toBeNull();
@@ -129,44 +131,176 @@ describe('Lists screen', () => {
     expect(screen.queryByRole('button', { name: 'Edit Fitness' })).toBeNull();
 
     await startEditing();
-    for (const label of ['Edit Fitness', 'Move Fitness up', 'Move Fitness down', 'Delete Fitness']) {
+    for (const label of ['Edit Fitness', 'Delete Fitness', 'Reorder Fitness']) {
       expect(screen.getByRole('button', { name: label })).toBeInTheDocument();
     }
+    expect(screen.queryByRole('button', { name: /^Move / })).toBeNull();
 
     await fireEvent.click(screen.getByRole('button', { name: 'Done' }));
     expect(screen.queryByRole('button', { name: 'Edit Fitness' })).toBeNull();
   });
 
-  it('moves a list, disables the buttons at the edges, and remembers the order', async () => {
-    const { repo } = setup();
-    const first = render(Lists, { props: { repo } });
-    await screen.findByText('Fitness');
-    await startEditing();
+  describe('drag to reorder', () => {
+    const ROW = 50;
+    // jsdom has no layout, so every row reports the same height for the drag maths.
+    beforeEach(() => {
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue(
+        DOMRect.fromRect({ x: 0, y: 0, width: 320, height: ROW }),
+      );
+    });
+    afterEach(() => vi.restoreAllMocks());
 
-    expect(screen.getByRole('button', { name: 'Move Fitness up' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Move Personal down' })).toBeDisabled();
+    const handle = (name: string) => screen.getByRole('button', { name: `Reorder ${name}` });
+    const row = (name: string) => handle(name).closest('li') as HTMLElement;
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Move Side Business up' }));
-    await waitFor(() =>
-      expect(rowNames()).toEqual(['Fitness', 'Side Business', 'Work', 'Personal']),
-    );
+    async function press(name: string, button = 0) {
+      await fireEvent.pointerDown(handle(name), { clientY: 200, pointerId: 1, button });
+    }
+    async function moveBy(name: string, dy: number) {
+      await fireEvent.pointerMove(handle(name), { clientY: 200 + dy, pointerId: 1 });
+    }
+    async function drag(name: string, dy: number) {
+      await press(name);
+      await moveBy(name, dy);
+      await fireEvent.pointerUp(handle(name), { clientY: 200 + dy, pointerId: 1 });
+    }
 
-    first.unmount();
-    render(Lists, { props: { repo } });
-    await screen.findByText('Side Business');
-    expect(rowNames()).toEqual(['Fitness', 'Side Business', 'Work', 'Personal']);
-  });
+    async function renderEditing(repo = setup().repo) {
+      const view = render(Lists, { props: { repo } });
+      await screen.findByText('Fitness');
+      await startEditing();
+      return view;
+    }
 
-  it('moves a list down', async () => {
-    const { repo } = setup();
-    render(Lists, { props: { repo } });
-    await screen.findByText('Fitness');
-    await startEditing();
+    it('drops a list two places down and remembers the order', async () => {
+      const { repo } = setup();
+      const first = await renderEditing(repo);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Move Fitness down' }));
-    await waitFor(() =>
-      expect(rowNames()).toEqual(['Work', 'Fitness', 'Side Business', 'Personal']),
-    );
+      await drag('Fitness', 2 * ROW);
+      expect(rowNames()).toEqual(['Work', 'Side Business', 'Fitness', 'Personal']);
+      await waitFor(async () => {
+        const stored = await repo.getAll();
+        expect(stored.ok && stored.value.map((l) => l.name)).toEqual([
+          'Work',
+          'Side Business',
+          'Fitness',
+          'Personal',
+        ]);
+      });
+
+      first.unmount();
+      render(Lists, { props: { repo } });
+      await screen.findByText('Fitness');
+      expect(rowNames()).toEqual(['Work', 'Side Business', 'Fitness', 'Personal']);
+    });
+
+    it('drops a list at the top', async () => {
+      await renderEditing();
+      await drag('Personal', -3 * ROW);
+      expect(rowNames()).toEqual(['Personal', 'Fitness', 'Work', 'Side Business']);
+    });
+
+    it('stops at the first and last places when dragged past them', async () => {
+      await renderEditing();
+      await drag('Fitness', 10 * ROW);
+      expect(rowNames()).toEqual(['Work', 'Side Business', 'Personal', 'Fitness']);
+      await drag('Personal', -10 * ROW);
+      await waitFor(() =>
+        expect(rowNames()).toEqual(['Personal', 'Work', 'Side Business', 'Fitness']),
+      );
+    });
+
+    it('moves the row with the finger and makes room, without saving until let go', async () => {
+      const { repo } = setup();
+      const spy = { ...repo, moveTo: vi.fn(repo.moveTo) };
+      await renderEditing(spy);
+
+      await press('Work');
+      await moveBy('Work', 30);
+
+      expect(row('Work')).toHaveStyle('transform: translateY(30px)');
+      expect(row('Side Business')).toHaveStyle(`transform: translateY(-${ROW}px)`);
+      expect(row('Fitness').style.transform).toBe('');
+      expect(spy.moveTo).not.toHaveBeenCalled();
+    });
+
+    it('changes nothing for a tiny drag', async () => {
+      const { repo } = setup();
+      const spy = { ...repo, moveTo: vi.fn(repo.moveTo) };
+      await renderEditing(spy);
+
+      await drag('Work', 10);
+
+      expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+      expect(spy.moveTo).not.toHaveBeenCalled();
+      expect(row('Work').style.transform).toBe('');
+    });
+
+    it('puts the row back when the touch is cancelled', async () => {
+      await renderEditing();
+      await press('Work');
+      await moveBy('Work', 2 * ROW);
+      await fireEvent.pointerCancel(handle('Work'), { pointerId: 1 });
+
+      expect(row('Work').style.transform).toBe('');
+      expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+    });
+
+    it('ignores the right mouse button and moves without a press', async () => {
+      const { repo } = setup();
+      const spy = { ...repo, moveTo: vi.fn(repo.moveTo) };
+      await renderEditing(spy);
+
+      await press('Work', 2);
+      await moveBy('Work', 2 * ROW);
+      await fireEvent.pointerUp(handle('Work'), { pointerId: 1 });
+
+      expect(row('Work').style.transform).toBe('');
+      expect(spy.moveTo).not.toHaveBeenCalled();
+    });
+
+    it('moves one place per arrow key and keeps focus on the handle', async () => {
+      const { repo } = setup();
+      const spy = { ...repo, moveTo: vi.fn(repo.moveTo) };
+      await renderEditing(spy);
+
+      handle('Side Business').focus();
+      await fireEvent.keyDown(handle('Side Business'), { key: 'ArrowUp' });
+      await waitFor(() =>
+        expect(rowNames()).toEqual(['Fitness', 'Side Business', 'Work', 'Personal']),
+      );
+      await waitFor(() => expect(handle('Side Business')).toHaveFocus());
+
+      await fireEvent.keyDown(handle('Side Business'), { key: 'ArrowDown' });
+      await waitFor(() =>
+        expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']),
+      );
+
+      spy.moveTo.mockClear();
+      await fireEvent.keyDown(handle('Fitness'), { key: 'ArrowUp' });
+      await fireEvent.keyDown(handle('Personal'), { key: 'ArrowDown' });
+      await fireEvent.keyDown(handle('Work'), { key: 'Enter' });
+      expect(spy.moveTo).not.toHaveBeenCalled();
+    });
+
+    it('puts the old order back and says so when saving fails', async () => {
+      const { repo, db } = setup();
+      await renderEditing(repo);
+      db.close();
+
+      await drag('Personal', -3 * ROW);
+
+      expect(await screen.findByRole('status')).toHaveTextContent(SAVE_ERROR);
+      expect(rowNames()).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+    });
+
+    it('labels the handle with the name as plain text', async () => {
+      const { repo } = setup();
+      await repo.create({ name: '<img src=x onerror=alert(1)>', emoji: '📚', color: 'teal' });
+      await renderEditing(repo);
+      expect(handle('<img src=x onerror=alert(1)>')).toBeInTheDocument();
+      expect(document.querySelectorAll('img')).toHaveLength(0);
+    });
   });
 
   it('starts on blue and lets the last picked color win', async () => {
@@ -258,7 +392,7 @@ describe('Lists screen', () => {
     await startEditing();
     db.close();
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Move Work up' }));
+    await fireEvent.keyDown(screen.getByRole('button', { name: 'Reorder Work' }), { key: 'ArrowUp' });
     expect(await screen.findByRole('status')).toHaveTextContent(SAVE_ERROR);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Delete Fitness' }));

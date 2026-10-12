@@ -130,31 +130,35 @@ describe('update', () => {
   });
 });
 
-describe('move', () => {
-  it('moves a list and renumbers the order from 0', async () => {
+describe('moveTo', () => {
+  it('moves a list to a place and renumbers the order from 0', async () => {
     const { repo, db } = setup();
     await repo.ensureStarterLists();
-    const moved = await repo.move('id-3', 'up');
+    const moved = await repo.moveTo('id-4', 0);
     expect(moved.ok && moved.value.map((l) => l.name)).toEqual([
-      'Fitness',
-      'Side Business',
-      'Work',
       'Personal',
+      'Fitness',
+      'Work',
+      'Side Business',
     ]);
     expect((await db.lists.orderBy('order').toArray()).map((l) => l.order)).toEqual([0, 1, 2, 3]);
+    expect(await names(repo)).toEqual(['Personal', 'Fitness', 'Work', 'Side Business']);
   });
 
-  it('is a no-op at the edges', async () => {
+  it('clamps a place past either end', async () => {
     const { repo } = setup();
     await repo.ensureStarterLists();
-    await repo.move('id-1', 'up');
-    await repo.move('id-4', 'down');
-    expect(await names(repo)).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+    await repo.moveTo('id-1', 99);
+    expect(await names(repo)).toEqual(['Work', 'Side Business', 'Personal', 'Fitness']);
+    await repo.moveTo('id-3', -1);
+    expect(await names(repo)).toEqual(['Side Business', 'Work', 'Personal', 'Fitness']);
   });
 
-  it('reports a missing list', async () => {
+  it('reports a missing list and changes nothing', async () => {
     const { repo } = setup();
-    expect(await repo.move('nope', 'up')).toEqual({ ok: false, error: 'List not found' });
+    await repo.ensureStarterLists();
+    expect(await repo.moveTo('nope', 0)).toEqual({ ok: false, error: 'List not found' });
+    expect(await names(repo)).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
   });
 
   it('keeps 100 lists numbered 0 to 99 after a move', async () => {
@@ -162,9 +166,10 @@ describe('move', () => {
     for (let i = 0; i < 100; i++) await repo.create({ ...reading, name: `List ${i}` });
     const all = await repo.getAll();
     const id = all.ok ? all.value[50]!.id : '';
-    await repo.move(id, 'up');
-    const orders = (await db.lists.orderBy('order').toArray()).map((l) => l.order);
-    expect(orders).toEqual(Array.from({ length: 100 }, (_, i) => i));
+    await repo.moveTo(id, 1);
+    const stored = await db.lists.orderBy('order').toArray();
+    expect(stored.map((l) => l.order)).toEqual(Array.from({ length: 100 }, (_, i) => i));
+    expect(stored[1]!.name).toBe('List 50');
   });
 });
 
@@ -216,7 +221,7 @@ describe('storage failures', () => {
     expect(await repo.ensureStarterLists()).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await repo.create(reading)).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await repo.update('id-1', reading)).toEqual({ ok: false, error: SAVE_ERROR });
-    expect(await repo.move('id-1', 'down')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await repo.moveTo('id-1', 2)).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await repo.remove('id-1')).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await repo.openItemCount('id-1')).toEqual({ ok: false, error: LOAD_ERROR });
   });

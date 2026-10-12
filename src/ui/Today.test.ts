@@ -178,7 +178,7 @@ describe('Today screen', () => {
     const ctx = setup();
     await seedHabit(ctx, 'Stretch', 'list-1');
     await ctx.itemsRepo.create({ title: 'Inbox zero', listId: 'list-2', type: 'daily' });
-    await ctx.listsRepo.move('list-2', 'up'); // Work now comes before Fitness
+    await ctx.listsRepo.moveTo('list-2', 0); // Work now comes before Fitness
     renderToday(ctx);
     await checkbox('Stretch');
 

@@ -44,7 +44,8 @@
   let listId = $state(untrack(() => initial?.listId ?? startListId ?? lists[0]?.id ?? ''));
   let type = $state<ItemType>(untrack(() => initial?.type ?? 'daily'));
   let target = $state(untrack(() => initial?.target ?? 3));
-  let due = $state<Due>(untrack(() => dueChoice(initial?.dueDate ?? '')));
+  // New to-dos start due today; an edit keeps whatever date the to-do already has.
+  let due = $state<Due>(untrack(() => (initial ? dueChoice(initial.dueDate) : 'today')));
   // "Pick a date" never shows an empty field: an existing date, or two days from now.
   let date = $state(untrack(() => (due === 'pick' ? initial!.dueDate : addDaysToKey(today, 2))));
   let localError = $state('');

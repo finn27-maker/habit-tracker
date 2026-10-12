@@ -4,7 +4,7 @@ import {
   LIST_COLORS,
   STARTER_LISTS,
   isSingleEmoji,
-  moveInOrder,
+  moveToIndex,
   validateListInput,
 } from './lists';
 
@@ -93,26 +93,32 @@ describe('LIST_COLORS', () => {
   });
 });
 
-describe('moveInOrder', () => {
+describe('moveToIndex', () => {
   const ids = ['a', 'b', 'c', 'd'];
 
-  it('moves an id up one place', () => {
-    expect(moveInOrder(ids, 'c', 'up')).toEqual(['a', 'c', 'b', 'd']);
+  it('moves an id up or down by one place', () => {
+    expect(moveToIndex(ids, 'c', 1)).toEqual(['a', 'c', 'b', 'd']);
+    expect(moveToIndex(ids, 'b', 2)).toEqual(['a', 'c', 'b', 'd']);
   });
 
-  it('moves an id down one place', () => {
-    expect(moveInOrder(ids, 'b', 'down')).toEqual(['a', 'c', 'b', 'd']);
+  it('moves an id several places in either direction', () => {
+    expect(moveToIndex(ids, 'a', 2)).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveToIndex(ids, 'd', 0)).toEqual(['d', 'a', 'b', 'c']);
   });
 
-  it('leaves the order alone at the edges and for unknown ids', () => {
-    expect(moveInOrder(ids, 'a', 'up')).toEqual(ids);
-    expect(moveInOrder(ids, 'd', 'down')).toEqual(ids);
-    expect(moveInOrder(ids, 'zzz', 'up')).toEqual(ids);
+  it('clamps a place outside the list to the first or last place', () => {
+    expect(moveToIndex(ids, 'a', 99)).toEqual(['b', 'c', 'd', 'a']);
+    expect(moveToIndex(ids, 'c', -5)).toEqual(['c', 'a', 'b', 'd']);
+  });
+
+  it('leaves the order alone for its own place and for unknown ids', () => {
+    expect(moveToIndex(ids, 'b', 1)).toEqual(ids);
+    expect(moveToIndex(ids, 'zzz', 0)).toEqual(ids);
   });
 
   it('does not mutate its input', () => {
     const copy = [...ids];
-    moveInOrder(copy, 'c', 'up');
+    moveToIndex(copy, 'c', 0);
     expect(copy).toEqual(ids);
   });
 });

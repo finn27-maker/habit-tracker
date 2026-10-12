@@ -66,15 +66,15 @@ export function validateListInput(input: {
   return ok({ name, emoji, color: input.color as ListColor });
 }
 
-export type Direction = 'up' | 'down';
-
-/** Returns a new order with `id` moved one place; unchanged at the edges or for unknown ids. */
-export function moveInOrder(ids: readonly string[], id: string, direction: Direction): string[] {
+/**
+ * Returns a new order with `id` moved to place `to` (0 = first), clamped to the list.
+ * Unchanged for unknown ids.
+ */
+export function moveToIndex(ids: readonly string[], id: string, to: number): string[] {
   const from = ids.indexOf(id);
-  const to = direction === 'up' ? from - 1 : from + 1;
-  if (from === -1 || to < 0 || to >= ids.length) return [...ids];
+  if (from === -1) return [...ids];
 
-  const next = [...ids];
-  [next[from], next[to]] = [next[to]!, next[from]!];
+  const next = ids.filter((other) => other !== id);
+  next.splice(Math.min(Math.max(to, 0), next.length), 0, id);
   return next;
 }

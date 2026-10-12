@@ -75,7 +75,7 @@ describe('adding to-dos', () => {
     await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: 'todo' } });
 
     const due = screen.getByLabelText('Due');
-    expect(due).toHaveDisplayValue('No date');
+    expect(due).toHaveDisplayValue('Today');
     expect(optionTexts(due)).toEqual(['No date', 'Today', 'Tomorrow', 'Pick a date']);
     expect(screen.queryByLabelText('Times per week')).toBeNull();
     expect(screen.queryByLabelText('Date')).toBeNull();
@@ -94,6 +94,7 @@ describe('adding to-dos', () => {
     await renderEmptyToday(ctx);
     await openNewSheet('Clean garage');
     await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-4' } });
+    await fireEvent.change(screen.getByLabelText('Due'), { target: { value: 'none' } });
     await save();
 
     const box = await checkbox('Clean garage');
@@ -104,16 +105,35 @@ describe('adding to-dos', () => {
     expect(await stored(ctx, 'item-1')).not.toHaveProperty('dueDate');
   });
 
-  it('adds a to-do due today, labelled "Today"', async () => {
+  it('makes a to-do due today when Due is left alone, labelled "Today"', async () => {
     const ctx = setup();
     await renderEmptyToday(ctx);
     await openNewSheet('Call accountant');
-    await fireEvent.change(screen.getByLabelText('Due'), { target: { value: 'today' } });
     await save();
 
     const box = await checkbox('Call accountant');
     expect(within(rowOf(box)).getByText('Today')).toBeInTheDocument();
     expect((await stored(ctx, 'item-1'))?.dueDate).toBe('2026-10-14');
+  });
+
+  it('makes a to-do saved just after midnight due on the new day', async () => {
+    const ctx = setup(new Date(2026, 9, 14, 23, 59, 50));
+    await renderEmptyToday(ctx);
+    await openNewSheet('Call accountant');
+    ctx.rollTo(new Date(2026, 9, 15, 0, 0, 5));
+    await save();
+
+    await waitFor(async () => expect((await stored(ctx, 'item-1'))?.dueDate).toBe('2026-10-15'));
+  });
+
+  it('gives daily habits no due date', async () => {
+    const ctx = setup();
+    await renderEmptyToday(ctx);
+    await openNewSheet('Meditate', 'daily');
+    await save();
+
+    await checkbox('Meditate');
+    expect(await stored(ctx, 'item-1')).not.toHaveProperty('dueDate');
   });
 
   it('keeps tomorrow and picked future dates off Today', async () => {
