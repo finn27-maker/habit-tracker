@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { deletedRows, restoreTarget, type ArchivedItem } from './deleted';
+import {
+  deleteForeverQuestion,
+  deletedRows,
+  emptyQuestion,
+  restoreTarget,
+  type ArchivedItem,
+} from './deleted';
 import type { List } from './lists';
 
 const list = (id: string, name: string, order: number): List => ({
@@ -40,6 +46,20 @@ describe('deletedRows', () => {
 
   it('is empty with nothing deleted', () => {
     expect(deletedRows([], lists, '2026-10-14')).toEqual([]);
+  });
+});
+
+describe('permanent-delete questions', () => {
+  it('say what goes and that it cannot be undone', () => {
+    expect(deleteForeverQuestion('Meditate')).toBe(
+      "Delete “Meditate” for good? Its history goes too. This can't be undone.",
+    );
+    expect(emptyQuestion(3)).toBe(
+      "Delete all 3 items for good? Their history goes too. This can't be undone.",
+    );
+    expect(emptyQuestion(1)).toBe(
+      "Delete all 1 item for good? Their history goes too. This can't be undone.",
+    );
   });
 });
 

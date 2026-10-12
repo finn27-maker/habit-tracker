@@ -53,6 +53,10 @@ export interface ItemsRepo {
    * (`movedTo` names that list). History was never removed, so streaks come back too.
    */
   restore(itemId: string): Promise<Result<{ item: Item; movedTo: string | null }>>;
+  /** Permanently removes one deleted item with its check-ins and targets. Can't be undone. */
+  deleteForever(itemId: string): Promise<Result<void>>;
+  /** Permanently removes every deleted item with its history. Resolves to how many. */
+  emptyDeleted(): Promise<Result<number>>;
   /** Deletes (archives) a list's completed to-dos. Resolves to how many. */
   clearCompleted(listId: string): Promise<Result<number>>;
   /** Moves a habit or goal to place `index` among its list's habits and goals (clamped). */
@@ -123,6 +127,13 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
   async function nextOrder(listId: string): Promise<number> {
     const siblings = await db.items.where('listId').equals(listId).filter(isActive).toArray();
     return siblings.reduce((highest, item) => Math.max(highest, item.order), -1) + 1;
+  }
+
+  /** Removes items with all their history. Call inside a transaction over all three tables. */
+  async function purge(itemIds: string[]) {
+    await db.completions.where('itemId').anyOf(itemIds).delete();
+    await db.targetHistory.where('itemId').anyOf(itemIds).delete();
+    await db.items.bulkDelete(itemIds);
   }
 
   return {
@@ -232,6 +243,25 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
           delete restored.archivedAt;
           await db.items.put(restored);
           return ok({ item: toItem(restored), movedTo: target.movedTo });
+        }),
+      ),
+
+    deleteForever: (itemId) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, db.completions, db.targetHistory, async () => {
+          const item = await db.items.get(itemId);
+          if (!item || isActive(item)) return err(ITEM_NOT_FOUND);
+          await purge([itemId]);
+          return ok(undefined);
+        }),
+      ),
+
+    emptyDeleted: () =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, db.completions, db.targetHistory, async () => {
+          const ids = (await db.items.filter((item) => !isActive(item)).primaryKeys()) as string[];
+          await purge(ids);
+          return ok(ids.length);
         }),
       ),
 

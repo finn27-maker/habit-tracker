@@ -676,6 +676,52 @@ describe('recently deleted', () => {
   });
 });
 
+describe('deleting for good', () => {
+  /** Meditate (daily, 2 check-ins), Ride (weekly, 1 log) deleted; Stretch active with 1. */
+  async function seeded() {
+    const ctx = await setup();
+    const { items } = ctx;
+    await items.create(meditate);
+    await items.create({ title: 'Ride', listId: 'list-1', type: 'weekly', target: 3 });
+    await items.create({ ...meditate, title: 'Stretch' });
+    await items.toggleDay('item-1', '2026-10-12');
+    await items.toggleDay('item-1', '2026-10-13');
+    await items.addCompletion('item-2', '2026-10-13');
+    await items.toggleDay('item-3', '2026-10-13');
+    await items.archive('item-1');
+    await items.archive('item-2');
+    return ctx;
+  }
+  const history = async (db: Awaited<ReturnType<typeof setup>>['db'], itemId: string) => ({
+    item: await db.items.get(itemId),
+    completions: await db.completions.where('itemId').equals(itemId).count(),
+    targets: await db.targetHistory.where('itemId').equals(itemId).count(),
+  });
+
+  it('removes one deleted item with its check-ins and targets', async () => {
+    const { items, db } = await seeded();
+    expect(await items.deleteForever('item-2')).toEqual({ ok: true, value: undefined });
+    expect(await history(db, 'item-2')).toEqual({ item: undefined, completions: 0, targets: 0 });
+    expect((await history(db, 'item-1')).completions).toBe(2);
+  });
+
+  it('refuses active and unknown items', async () => {
+    const { items, db } = await seeded();
+    expect(await items.deleteForever('item-3')).toEqual({ ok: false, error: 'Habit not found' });
+    expect(await items.deleteForever('nope')).toEqual({ ok: false, error: 'Habit not found' });
+    expect((await history(db, 'item-3')).completions).toBe(1);
+  });
+
+  it('empties every deleted item and leaves active ones alone', async () => {
+    const { items, db } = await seeded();
+    expect(await items.emptyDeleted()).toEqual({ ok: true, value: 2 });
+    expect(await history(db, 'item-1')).toEqual({ item: undefined, completions: 0, targets: 0 });
+    expect(await history(db, 'item-2')).toEqual({ item: undefined, completions: 0, targets: 0 });
+    expect(await history(db, 'item-3')).toMatchObject({ completions: 1 });
+    expect(await items.emptyDeleted()).toEqual({ ok: true, value: 0 });
+  });
+});
+
 describe('clearCompleted', () => {
   it('archives only this list’s completed to-dos and says how many', async () => {
     const { items, db } = await setup();
@@ -751,6 +797,8 @@ describe('storage failures', () => {
       error: SAVE_ERROR,
     });
     expect(await items.restore('item-1')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.deleteForever('item-1')).toEqual({ ok: false, error: SAVE_ERROR });
+    expect(await items.emptyDeleted()).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.clearCompleted('list-1')).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.moveTo('item-1', 0)).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.listArchived()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });

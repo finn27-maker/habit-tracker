@@ -41,8 +41,8 @@ describe('Recently deleted', () => {
     );
     const rows = await screen.findAllByRole('listitem');
     expect(rows.map((row) => row.textContent?.replace(/\s+/g, ' ').trim())).toEqual([
-      'Call mom To-do · Personal · Deleted Oct 13 Restore',
-      'Meditate Daily habit · Personal · Deleted Oct 12 Restore',
+      'Call mom To-do · Personal · Deleted Oct 13 Restore Delete',
+      'Meditate Daily habit · Personal · Deleted Oct 12 Restore Delete',
     ]);
     const tabs = screen.getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: 'Lists' })).toHaveAttribute('aria-current', 'page');
@@ -135,6 +135,78 @@ describe('Recently deleted', () => {
     renderAt(ctx, '#/deleted', { [repo]: { ...base, ...broken } });
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.queryByText('Nothing deleted.')).toBeNull();
+  });
+
+  describe('deleting for good', () => {
+    /** Meditate (2 check-ins) and Call mom deleted; Stretch active with 1 check-in. */
+    async function deletedTwo(ctx: AppCtx) {
+      const make = await seed(ctx);
+      const meditate = await make('Meditate', 'daily');
+      const call = await make('Call mom', 'todo');
+      const stretch = await make('Stretch', 'daily');
+      await ctx.itemsRepo.toggleDay(meditate, '2026-10-12');
+      await ctx.itemsRepo.toggleDay(meditate, '2026-10-13');
+      await ctx.itemsRepo.toggleDay(stretch, '2026-10-13');
+      await ctx.db.items.update(meditate, { archivedAt: at(12) });
+      await ctx.db.items.update(call, { archivedAt: at(13) });
+      return { meditate, call, stretch };
+    }
+    const dialog = () => screen.getByRole('alertdialog');
+
+    it('deletes one item after confirming, with its history', async () => {
+      const ctx = setup();
+      const { meditate } = await deletedTwo(ctx);
+      renderAt(ctx, '#/deleted');
+      await fireEvent.click(await screen.findByRole('button', { name: 'Delete Meditate' }));
+      expect(dialog()).toHaveTextContent(
+        "Delete “Meditate” for good? Its history goes too. This can't be undone.",
+      );
+      await fireEvent.click(within(dialog()).getByRole('button', { name: 'Delete' }));
+
+      expect(await screen.findByText('Deleted “Meditate” for good.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Restore Meditate' })).toBeNull();
+      expect(screen.getByRole('button', { name: 'Restore Call mom' })).toBeInTheDocument();
+      expect(await ctx.db.completions.where('itemId').equals(meditate).count()).toBe(0);
+    });
+
+    it('keeps the item when the confirmation is cancelled', async () => {
+      const ctx = setup();
+      const { meditate } = await deletedTwo(ctx);
+      renderAt(ctx, '#/deleted');
+      await fireEvent.click(await screen.findByRole('button', { name: 'Delete Meditate' }));
+      await fireEvent.click(within(dialog()).getByRole('button', { name: 'Cancel' }));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(screen.getByRole('button', { name: 'Restore Meditate' })).toBeInTheDocument();
+      expect(await ctx.db.completions.where('itemId').equals(meditate).count()).toBe(2);
+    });
+
+    it('empties everything after confirming, and leaves active habits alone', async () => {
+      const ctx = setup();
+      const { stretch } = await deletedTwo(ctx);
+      renderAt(ctx, '#/deleted');
+      await fireEvent.click(await screen.findByRole('button', { name: 'Empty' }));
+      expect(dialog()).toHaveTextContent(
+        "Delete all 2 items for good? Their history goes too. This can't be undone.",
+      );
+      await fireEvent.click(within(dialog()).getByRole('button', { name: 'Delete all' }));
+
+      expect(await screen.findByText('Emptied Recently deleted.')).toBeInTheDocument();
+      expect(screen.getByText('Nothing deleted.')).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Empty' })).toBeNull();
+      expect(await ctx.db.items.count()).toBe(1);
+      expect(await ctx.db.completions.where('itemId').equals(stretch).count()).toBe(1);
+    });
+
+    it('reports a permanent delete that could not be saved', async () => {
+      const ctx = setup();
+      await deletedTwo(ctx);
+      renderAt(ctx, '#/deleted');
+      await fireEvent.click(await screen.findByRole('button', { name: 'Delete Meditate' }));
+      ctx.db.close();
+      await fireEvent.click(within(dialog()).getByRole('button', { name: 'Delete' }));
+      expect(await screen.findByText(SAVE_ERROR)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Restore Meditate' })).toBeInTheDocument();
+    });
   });
 
   it('shows deleted names as plain text', async () => {

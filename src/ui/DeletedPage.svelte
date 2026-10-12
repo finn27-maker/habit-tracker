@@ -3,7 +3,13 @@
   import type { ItemsRepo } from '../data/items-repo';
   import type { ListsRepo } from '../data/lists-repo';
   import { dayKey } from '../domain/dates';
-  import { deletedRows, type ArchivedItem, type DeletedRow } from '../domain/deleted';
+  import {
+    deleteForeverQuestion,
+    deletedRows,
+    emptyQuestion,
+    type ArchivedItem,
+    type DeletedRow,
+  } from '../domain/deleted';
   import type { Clock } from '../platform/clock';
 
   let {
@@ -15,6 +21,8 @@
   let rows = $state<DeletedRow[]>([]);
   let loaded = $state(false);
   let notice = $state('');
+  /** What the open confirmation would delete for good: one item, or everything. */
+  let confirming = $state<{ item: ArchivedItem } | 'all' | null>(null);
 
   /** Shows what is deleted in storage now; `message` replaces any earlier notice. */
   async function load(message = '') {
@@ -44,11 +52,29 @@
     );
   }
 
+  async function deleteForGood() {
+    const target = confirming;
+    confirming = null;
+    if (target === null) return;
+    const result =
+      target === 'all' ? await itemsRepo.emptyDeleted() : await itemsRepo.deleteForever(target.item.id);
+    if (!result.ok) {
+      notice = result.error;
+      return;
+    }
+    await load(target === 'all' ? 'Emptied Recently deleted.' : `Deleted “${target.item.title}” for good.`);
+  }
+
   onMount(() => void load());
 </script>
 
 <header class="bar">
-  <a class="back" href="#/lists"><span aria-hidden="true">‹ </span>Lists</a>
+  <div class="top">
+    <a class="back" href="#/lists"><span aria-hidden="true">‹ </span>Lists</a>
+    {#if rows.length > 0}
+      <button type="button" class="empty-all" onclick={() => (confirming = 'all')}>Empty</button>
+    {/if}
+  </div>
   <h1>Recently deleted</h1>
 </header>
 
@@ -67,6 +93,14 @@
         <button type="button" aria-label="Restore {row.item.title}" onclick={() => restore(row.item)}>
           Restore
         </button>
+        <button
+          type="button"
+          class="danger"
+          aria-label="Delete {row.item.title}"
+          onclick={() => (confirming = { item: row.item })}
+        >
+          Delete
+        </button>
       </li>
     {/each}
   </ul>
@@ -74,9 +108,30 @@
   <p class="empty">Nothing deleted.</p>
 {/if}
 
+{#if confirming !== null}
+  <div class="backdrop">
+    <div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="forever-title">
+      <p id="forever-title">
+        {confirming === 'all' ? emptyQuestion(rows.length) : deleteForeverQuestion(confirming.item.title)}
+      </p>
+      <div class="buttons">
+        <button type="button" class="secondary" onclick={() => (confirming = null)}>Cancel</button>
+        <button type="button" class="destructive" onclick={deleteForGood}>
+          {confirming === 'all' ? 'Delete all' : 'Delete'}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
 <style>
   .bar {
     padding: 0.5rem 0 1rem;
+  }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   .back {
     display: inline-flex;
@@ -109,7 +164,7 @@
   .row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.25rem;
     min-height: 3.5rem;
     padding: 0.5rem 0.75rem;
   }
@@ -132,6 +187,7 @@
   }
   button {
     flex: none;
+    min-width: 44px;
     min-height: 44px;
     padding: 0 0.75rem;
     border: 0;
@@ -140,6 +196,10 @@
     font: inherit;
     font-weight: 600;
   }
+  .row .danger,
+  .empty-all {
+    color: var(--danger);
+  }
   .empty {
     margin-top: 2rem;
     padding: 1.5rem;
@@ -147,5 +207,43 @@
     background: var(--surface);
     color: var(--text-secondary);
     text-align: center;
+  }
+  .backdrop {
+    position: fixed;
+    z-index: 20; /* above the update toast (10) and the tab bar (5) */
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgb(0 0 0 / 0.4);
+  }
+  .confirm {
+    width: 100%;
+    max-width: 360px;
+    padding: 1.25rem;
+    border-radius: 14px;
+    background: var(--surface);
+  }
+  .confirm p {
+    margin: 0 0 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .buttons {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .buttons button {
+    flex: 1;
+    border-radius: 10px;
+  }
+  .secondary {
+    background: var(--bg);
+    color: var(--text);
+  }
+  .destructive {
+    background: var(--danger-fill);
+    color: #fff;
   }
 </style>

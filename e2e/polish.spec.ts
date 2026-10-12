@@ -82,7 +82,9 @@ test('+ opens a to-do due today, and a name plus Save adds it', async ({ page })
 
 // Recorded, with only a pathological slowdown failing: CI runners' WebKit storage is several
 // times slower than a Mac's, and neither is an iPhone (see the restore test in backup.spec.ts).
-test('500 deleted items all show', async ({ page }, testInfo) => {
+test('500 deleted items all show, and Empty removes them with their history', async ({
+  page,
+}, testInfo) => {
   await page.evaluate(
     () =>
       new Promise<void>((resolve, reject) => {
@@ -90,7 +92,7 @@ test('500 deleted items all show', async ({ page }, testInfo) => {
         open.onerror = () => reject(open.error);
         open.onsuccess = () => {
           const db = open.result;
-          const tx = db.transaction('items', 'readwrite');
+          const tx = db.transaction(['items', 'completions'], 'readwrite');
           for (let i = 0; i < 500; i += 1) {
             tx.objectStore('items').put({
               id: `old-${i}`,
@@ -100,6 +102,10 @@ test('500 deleted items all show', async ({ page }, testInfo) => {
               order: i,
               archivedAt: i,
             });
+            for (let d = 0; d < 40; d += 1) {
+              const dayKey = `2025-${String(1 + (d % 12)).padStart(2, '0')}-${String(1 + d).padStart(2, '0')}`;
+              tx.objectStore('completions').put({ id: `c-${i}-${d}`, itemId: `old-${i}`, dayKey, createdAt: d });
+            }
           }
           tx.oncomplete = () => {
             db.close();
@@ -116,6 +122,17 @@ test('500 deleted items all show', async ({ page }, testInfo) => {
   const ms = Date.now() - started;
   testInfo.annotations.push({ type: 'deleted-500-ms', description: String(ms) });
   expect(ms).toBeLessThan(5000);
+
+  await page.getByRole('button', { name: 'Empty' }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText('Delete all 500 items for good?');
+  const emptying = Date.now();
+  await dialog.getByRole('button', { name: 'Delete all' }).click();
+  await expect(page.getByText('Nothing deleted.')).toBeVisible({ timeout: 15_000 });
+  const emptyMs = Date.now() - emptying;
+  testInfo.annotations.push({ type: 'empty-500-ms', description: String(emptyMs) });
+  expect(emptyMs).toBeLessThan(5000);
+  expect(await completionCount(page)).toBe(0);
 });
 
 test('clearing completed to-dos moves them to Recently deleted', async ({ page }) => {

@@ -1,3 +1,4 @@
+import { countLabel } from './history';
 import { kindTitle, type Item } from './items';
 import type { List } from './lists';
 
@@ -27,6 +28,14 @@ export function deletedRows(items: readonly ArchivedItem[], lists: readonly List
       return { item, detail: `${kindTitle(item.type)} · ${listName} · Deleted ${when}` };
     });
 }
+
+/** Asked before one deleted item is removed for good. */
+export const deleteForeverQuestion = (title: string) =>
+  `Delete “${title}” for good? Its history goes too. This can't be undone.`;
+
+/** Asked before Recently deleted is emptied. */
+export const emptyQuestion = (count: number) =>
+  `Delete all ${countLabel(count, 'item')} for good? Their history goes too. This can't be undone.`;
 
 /**
  * Where a restored item goes: back to its own list, or to the first list if that one was
