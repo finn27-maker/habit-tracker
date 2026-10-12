@@ -5,6 +5,38 @@ export interface ShareEnv {
   canShare?: (data: ShareData) => boolean;
   share?: (data: ShareData) => Promise<void>;
   download: (file: File) => void;
+  copyText?: (text: string) => Promise<void>;
+}
+
+export type LinkOutcome = 'shared' | 'copied' | 'shown' | 'cancelled';
+
+export const SHARE_TITLE = 'Habit Tracker';
+export const SHARE_TEXT = 'Try this habit and to-do tracker:';
+
+const isCancel = (error: unknown) => error instanceof DOMException && error.name === 'AbortError';
+
+/**
+ * Sends the app's link through the share sheet, else copies it, else leaves it to be shown
+ * ('shown'). The link goes inside the text: on iOS, Copy in the sheet copies only the text.
+ */
+export async function shareLink(url: string, env: ShareEnv): Promise<LinkOutcome> {
+  if (env.share) {
+    try {
+      await env.share({ title: SHARE_TITLE, text: `${SHARE_TEXT} ${url}` });
+      return 'shared';
+    } catch (error) {
+      if (isCancel(error)) return 'cancelled';
+    }
+  }
+  if (env.copyText) {
+    try {
+      await env.copyText(url);
+      return 'copied';
+    } catch {
+      // Clipboard refused (no permission or no tap): show the link instead.
+    }
+  }
+  return 'shown';
 }
 
 /**
@@ -21,7 +53,7 @@ export async function saveFile(file: File, env: ShareEnv): Promise<SaveOutcome> 
       await env.share(data);
       return 'shared';
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+      if (isCancel(error)) return 'cancelled';
     }
   }
   env.download(file);

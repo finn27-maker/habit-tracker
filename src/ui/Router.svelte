@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack, type Snippet } from 'svelte';
+  import { untrack } from 'svelte';
   import type { BackupRepo } from '../data/backup-repo';
   import type { ItemsRepo } from '../data/items-repo';
   import type { ListsRepo } from '../data/lists-repo';
@@ -9,6 +9,9 @@
   import BackupBanner from './BackupBanner.svelte';
   import BackupSection from './BackupSection.svelte';
   import DeletedPage from './DeletedPage.svelte';
+  import InstallBanner from './InstallBanner.svelte';
+  import type { InstallHint } from './install-hint.svelte';
+  import ShareApp from './ShareApp.svelte';
   import ItemPage from './ItemPage.svelte';
   import ListPage from './ListPage.svelte';
   import Lists from './Lists.svelte';
@@ -22,15 +25,18 @@
     backupRepo,
     share,
     clock,
-    children,
+    installHint,
+    appUrl,
   }: {
     listsRepo: ListsRepo;
     itemsRepo: ItemsRepo;
     backupRepo: BackupRepo;
     share: ShareEnv;
     clock: Clock;
-    /** Shown above every screen (the install banner). */
-    children?: Snippet;
+    /** The install card shown on Today in a browser tab. */
+    installHint: InstallHint;
+    /** The app's own address, sent by Share this app. */
+    appUrl: string;
   } = $props();
 
   const backup = untrack(() => new BackupState({ repo: backupRepo, share, clock }));
@@ -58,12 +64,12 @@
 <svelte:window onhashchange={navigated} />
 
 <main>
-  {@render children?.()}
   {#if route === 'lists'}
     <BackupBanner {backup} />
     {#key backup.restores}
       <Lists repo={listsRepo} />
     {/key}
+    <ShareApp url={appUrl} {share} />
     <BackupSection {backup} />
   {:else if route === 'list'}
     {#key listId}
@@ -76,6 +82,7 @@
       <ItemPage itemId={itemId!} {backHref} {listsRepo} {itemsRepo} {clock} />
     {/key}
   {:else}
+    <InstallBanner hint={installHint} />
     <BackupBanner {backup} />
     <Today {listsRepo} {itemsRepo} {clock} />
   {/if}

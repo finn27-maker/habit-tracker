@@ -1,7 +1,24 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isStandalone, requestPersistenceOnce } from './install';
+import { deviceKind, isStandalone, requestPersistenceOnce } from './install';
 
 const media = (matches: boolean) => () => ({ matches });
+
+describe('deviceKind', () => {
+  const IPHONE =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148';
+  const IPAD = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/605.1.15';
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 Chrome/148 Mobile';
+  const WINDOWS = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/148';
+
+  it('tells iPhone, iPad, Android and computers apart', () => {
+    expect(deviceKind(IPHONE, 5)).toBe('ios');
+    expect(deviceKind(IPAD, 5)).toBe('ios'); // iPadOS Safari reports a Mac
+    expect(deviceKind(IPAD, 0)).toBe('other'); // a real Mac
+    expect(deviceKind(IPAD)).toBe('other');
+    expect(deviceKind(ANDROID, 5)).toBe('android');
+    expect(deviceKind(WINDOWS, 0)).toBe('other');
+  });
+});
 
 describe('isStandalone', () => {
   it('is true when iOS reports navigator.standalone', () => {

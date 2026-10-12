@@ -9,6 +9,22 @@ export function isStandalone(env: StandaloneEnv): boolean {
   return env.matchMedia?.('(display-mode: standalone)').matches ?? false;
 }
 
+export type DeviceKind = 'ios' | 'android' | 'other';
+
+/** Which install steps to show. iPadOS Safari reports a Mac user agent, so touch + Mac is iOS. */
+export function deviceKind(userAgent: string, maxTouchPoints = 0): DeviceKind {
+  if (/iPhone|iPad|iPod/.test(userAgent)) return 'ios';
+  if (/Macintosh/.test(userAgent) && maxTouchPoints > 1) return 'ios';
+  if (/Android/.test(userAgent)) return 'android';
+  return 'other';
+}
+
+/** Chrome's deferred install prompt (BeforeInstallPromptEvent); Safari has none. */
+export interface InstallPrompt {
+  prompt(): Promise<unknown>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 export type PersistenceResult = 'granted' | 'denied' | 'unsupported' | 'already-requested';
 
 export interface PersistenceDeps {

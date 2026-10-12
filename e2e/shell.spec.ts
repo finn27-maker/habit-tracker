@@ -10,13 +10,6 @@ test('launches to the Today view within 1000 ms', async ({ page }) => {
   ).toBeVisible();
 });
 
-test('Safari-tab visitors see the Add to Home Screen banner', async ({ page }) => {
-  await page.goto('./');
-  await expect(
-    page.getByText('Add to Home Screen to keep your data safe. Tap Share, then Add to Home Screen.'),
-  ).toBeVisible();
-});
-
 test('requests persistent storage once on first run', async ({ page }) => {
   // Init scripts re-run on every navigation, so count calls in sessionStorage.
   await page.addInitScript(() => {

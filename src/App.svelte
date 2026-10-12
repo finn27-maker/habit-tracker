@@ -6,10 +6,10 @@
   import { createItemsRepo } from './data/items-repo';
   import { createListsRepo } from './data/lists-repo';
   import { createClock } from './platform/clock';
-  import { isStandalone } from './platform/install';
+  import { deviceKind, isStandalone, type InstallPrompt } from './platform/install';
   import { whenOnline } from './platform/online';
   import type { ShareEnv } from './platform/share';
-  import InstallBanner from './ui/InstallBanner.svelte';
+  import { InstallHint } from './ui/install-hint.svelte';
   import Router from './ui/Router.svelte';
   import UpdateToast from './ui/UpdateToast.svelte';
 
@@ -28,10 +28,26 @@
     });
   });
 
-  const standalone = isStandalone({
-    navigatorStandalone: (navigator as Navigator & { standalone?: boolean }).standalone,
-    matchMedia: (q) => window.matchMedia(q),
+  const INSTALL_DISMISSED = 'habit-tracker:install-hint-dismissed';
+  const installHint = new InstallHint({
+    standalone: isStandalone({
+      navigatorStandalone: (navigator as Navigator & { standalone?: boolean }).standalone,
+      matchMedia: (q) => window.matchMedia(q),
+    }),
+    device: deviceKind(navigator.userAgent, navigator.maxTouchPoints),
+    isDismissed: () => localStorage.getItem(INSTALL_DISMISSED) === '1',
+    markDismissed: () => localStorage.setItem(INSTALL_DISMISSED, '1'),
+    // Chrome only: keep its install prompt for the card's Install button.
+    onPrompt: (callback) =>
+      window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        callback(event as unknown as InstallPrompt);
+      }),
+    onInstalled: (callback) => window.addEventListener('appinstalled', callback),
   });
+
+  // The app's own address (no #route), for Share this app.
+  const appUrl = new URL(import.meta.env.BASE_URL, location.href).href;
 
   const db = createDb();
   const listsRepo = createListsRepo(db);
@@ -42,6 +58,7 @@
   const share: ShareEnv = {
     canShare: 'canShare' in navigator ? (data) => navigator.canShare(data) : undefined,
     share: 'share' in navigator ? (data) => navigator.share(data) : undefined,
+    copyText: navigator.clipboard ? (text) => navigator.clipboard.writeText(text) : undefined,
     download: (file) => {
       const url = URL.createObjectURL(file);
       const link = document.createElement('a');
@@ -77,9 +94,7 @@
 
 </script>
 
-<Router {listsRepo} {itemsRepo} {backupRepo} {share} {clock}>
-  <InstallBanner {standalone} />
-</Router>
+<Router {listsRepo} {itemsRepo} {backupRepo} {share} {clock} {installHint} {appUrl} />
 
 <UpdateToast
   needRefresh={$needRefresh}
