@@ -10,12 +10,12 @@ import {
 } from './items';
 
 describe('item kinds', () => {
-  it('names and explains every type, in the order they are offered', () => {
-    expect(ITEM_KINDS.map((kind) => kind.type)).toEqual([...ITEM_TYPES]);
+  it('names and explains every type, to-do first', () => {
+    expect([...ITEM_KINDS.map((kind) => kind.type)].sort()).toEqual([...ITEM_TYPES].sort());
     expect(ITEM_KINDS.map((kind) => [kind.title, kind.description])).toEqual([
+      ['To-do', 'Once, with an optional due date'],
       ['Daily habit', 'Every day, with a streak'],
       ['Weekly goal', 'A number of times each week'],
-      ['To-do', 'Once, with an optional due date'],
     ]);
     expect(kindTitle('weekly')).toBe('Weekly goal');
   });

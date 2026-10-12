@@ -56,18 +56,17 @@ const checkboxNames = (container: HTMLElement) =>
 
 async function openNewSheet(name: string, type: ItemType = 'todo') {
   await fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
-  await fireEvent.click(screen.getByRole('button', { name: kindTitle(type) }));
+  await fireEvent.click(screen.getByRole('radio', { name: kindTitle(type) }));
   await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });
 }
 
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
 describe('adding to-dos', () => {
-  it('shows a Due choice, not a weekly target, once To-do is chosen', async () => {
+  it('opens on a to-do with a Due choice, not a weekly target', async () => {
     const ctx = setup();
     await renderEmptyToday(ctx);
     await fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'To-do' }));
 
     expect(screen.getByRole('dialog', { name: 'New to-do' })).toBeInTheDocument();
     const due = screen.getByLabelText('Due');
@@ -482,7 +481,7 @@ describe('list page', () => {
     await ctx.listsRepo.ensureStarterLists();
     renderList(ctx, 'list-2');
     await fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
-    await fireEvent.click(screen.getByRole('button', { name: 'To-do' }));
+    expect(screen.getByRole('radio', { name: 'To-do' })).toBeChecked();
     expect(screen.getByLabelText('List')).toHaveDisplayValue('💼 Work');
   });
 

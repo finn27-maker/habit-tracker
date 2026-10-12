@@ -46,7 +46,7 @@ test('a deleted habit comes back from Recently deleted with its check-in', async
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute('aria-checked', 'true');
 });
 
-test('adding asks what kind first, and a to-do added that way is a to-do', async ({ page }) => {
+test('+ opens a to-do due today, and a name plus Save adds it', async ({ page }) => {
   // Measured inside the page: from the tap until the choice is on screen.
   const ms = await page.evaluate(
     () =>
@@ -60,20 +60,24 @@ test('adding asks what kind first, and a to-do added that way is a to-do', async
   );
   expect(ms).toBeLessThan(300);
 
-  const dialog = page.getByRole('dialog', { name: 'What are you adding?' });
+  const dialog = page.getByRole('dialog', { name: 'New to-do' });
   await expect(dialog).toBeVisible();
-  for (const kind of ['Daily habit', 'Weekly goal', 'To-do']) {
-    const box = (await dialog.getByRole('button', { name: kind, exact: true }).boundingBox())!;
+  await expect(dialog.getByRole('radio', { name: 'To-do', exact: true })).toBeChecked();
+  for (const kind of ['To-do', 'Daily habit', 'Weekly goal']) {
+    const box = (await dialog.getByRole('radio', { name: kind, exact: true }).boundingBox())!;
     expect(box.height).toBeGreaterThanOrEqual(43.5);
   }
-  await expect(dialog.getByLabel('Name')).toHaveCount(0);
+  await expect(dialog.getByLabel('Due')).toHaveValue('today');
+  await expect(dialog.getByLabel('Name')).toBeFocused();
 
-  await dialog.getByRole('button', { name: 'To-do', exact: true }).click();
-  await page.getByLabel('Name').fill('Pick up dry cleaning');
+  // A quick task: type and save, nothing else.
+  await page.keyboard.type('Pick up dry cleaning');
   await page.getByRole('button', { name: 'Save' }).click();
+  const row = page.getByRole('listitem').filter({ hasText: 'Pick up dry cleaning' });
+  await expect(row).toContainText('Today');
   await page.getByRole('button', { name: 'Edit Pick up dry cleaning' }).click();
   await expect(page.getByRole('dialog', { name: 'Edit to-do' })).toBeVisible();
-  await expect(page.getByLabel('Due')).toHaveValue('today');
+  await expect(page.getByRole('radio')).toHaveCount(0);
 });
 
 // Recorded, with only a pathological slowdown failing: CI runners' WebKit storage is several

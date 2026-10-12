@@ -42,8 +42,10 @@
   // The sheet edits its own copy and is created fresh each time it opens.
   let title = $state(untrack(() => initial?.title ?? ''));
   let listId = $state(untrack(() => initial?.listId ?? startListId ?? lists[0]?.id ?? ''));
-  // A new item starts with no type: the sheet asks first, so nothing defaults to a daily habit.
-  let type = $state<ItemType | null>(untrack(() => initial?.type ?? null));
+  // A new item starts as a to-do due today (the quickest, most common add); the Type switch
+  // stays visible so a habit is always a deliberate choice.
+  let type = $state<ItemType>(untrack(() => initial?.type ?? 'todo'));
+  let nameField: HTMLInputElement | undefined = $state();
   let target = $state(untrack(() => initial?.target ?? 3));
   // New to-dos start due today; an edit keeps whatever date the to-do already has.
   let due = $state<Due>(untrack(() => (initial ? dueChoice(initial.dueDate) : 'today')));
@@ -54,11 +56,17 @@
 
   const editing = $derived(initial !== undefined);
   const sheetTitle = $derived.by(() => {
-    if (!initial) return type === null ? 'What are you adding?' : `New ${kindTitle(type).toLowerCase()}`;
+    if (!initial) return `New ${kindTitle(type).toLowerCase()}`;
     if (initial.type === 'weekly') return 'Edit weekly goal';
     return initial.type === 'todo' ? 'Edit to-do' : 'Edit habit';
   });
   const targetChoices = Array.from({ length: MAX_TARGET - MIN_TARGET + 1 }, (_, i) => MIN_TARGET + i);
+  const typeHint = $derived(ITEM_KINDS.find((kind) => kind.type === type)!.description);
+
+  // A new item is ready to type straight away.
+  $effect(() => {
+    if (!editing) untrack(() => nameField?.focus());
+  });
 
   function dueDate(): string | null {
     if (due === 'none') return '';
@@ -74,7 +82,7 @@
       return;
     }
     localError = '';
-    onSubmit({ title, listId, type: type!, target, dueDate: chosen });
+    onSubmit({ title, listId, type, target, dueDate: chosen });
   }
 </script>
 
@@ -95,24 +103,6 @@
       </button>
       <button type="button" class="danger" onclick={onDelete}>Delete</button>
     </div>
-  {:else if type === null}
-    <div class="kinds">
-      {#each ITEM_KINDS as kind (kind.type)}
-        <button
-          type="button"
-          class="kind"
-          aria-label={kind.title}
-          aria-describedby="kind-{kind.type}"
-          onclick={() => (type = kind.type)}
-        >
-          <span class="kind-title">{kind.title}</span>
-          <span class="kind-description" id="kind-{kind.type}">{kind.description}</span>
-        </button>
-      {/each}
-    </div>
-    <div class="buttons">
-      <button type="button" class="secondary" onclick={onCancel}>Cancel</button>
-    </div>
   {:else}
     <form
       onsubmit={(event) => {
@@ -121,12 +111,27 @@
       }}
     >
       {#if !editing}
-        <button type="button" class="back" onclick={() => (type = null)}>
-          <span aria-hidden="true">‹ </span>Back
-        </button>
+        <fieldset class="types" aria-describedby="type-hint">
+          <legend>Type</legend>
+          <div class="segments">
+            {#each ITEM_KINDS as kind (kind.type)}
+              <label class="segment" class:selected={type === kind.type}>
+                <input type="radio" name="item-type" value={kind.type} bind:group={type} />
+                {kind.title}
+              </label>
+            {/each}
+          </div>
+          <p class="hint" id="type-hint">{typeHint}</p>
+        </fieldset>
       {/if}
       <label for="habit-title">Name</label>
-      <input id="habit-title" type="text" bind:value={title} autocomplete="off" />
+      <input
+        id="habit-title"
+        type="text"
+        bind:this={nameField}
+        bind:value={title}
+        autocomplete="off"
+      />
 
       <label for="habit-list">List</label>
       <select id="habit-list" bind:value={listId}>
@@ -175,41 +180,44 @@
 </Sheet>
 
 <style>
-  .kinds {
+  .segments {
     display: grid;
-    gap: 0.5rem;
-    margin-top: 0.75rem;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    padding: 2px;
+    border-radius: 10px;
+    background: var(--separator);
   }
-  .kind {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.125rem;
+  .segment {
+    position: relative;
+    display: grid;
+    place-items: center;
     min-height: 44px;
-    padding: 0.75rem 1rem;
-    border: 1px solid var(--separator);
-    border-radius: 12px;
-    background: var(--bg);
+    margin: 0;
+    padding: 0 0.25rem;
+    border-radius: 8px;
     color: var(--text);
-    font: inherit;
-    text-align: left;
-  }
-  .kind-title {
-    font-size: 1.0625rem;
-    font-weight: 700;
-  }
-  .kind-description {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-  }
-  .back {
-    min-height: 44px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    color: var(--accent);
-    font: inherit;
+    font-size: 0.9375rem;
     font-weight: 600;
+    text-align: center;
+  }
+  .segment.selected {
+    background: var(--surface);
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.15);
+  }
+  /* The real radio covers its segment: tappable, focusable and named by the label's text. */
+  .segment input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .segment:focus-within {
+    outline: 3px solid var(--accent);
+    outline-offset: 1px;
   }
   .confirm {
     margin: 0;

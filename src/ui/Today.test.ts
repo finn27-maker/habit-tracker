@@ -44,11 +44,10 @@ async function seedHabit(ctx: Ctx, title: string, listId = 'list-1') {
 const checkbox = (name: string) => screen.findByRole('checkbox', { name });
 const completions = (ctx: Ctx) => ctx.db.completions.toArray();
 
-/** Taps + and chooses a kind (unless the sheet is already open on a form). */
+/** Taps + (which opens a to-do) and switches the Type to `kind`. */
 async function startAdding(kind = 'Daily habit') {
   await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
-  const choice = screen.queryByRole('button', { name: kind });
-  if (choice) await fireEvent.click(choice);
+  await fireEvent.click(screen.getByRole('radio', { name: kind }));
 }
 
 async function addHabit(name: string, listId?: string) {
@@ -68,24 +67,24 @@ describe('Today screen', () => {
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
   });
 
-  it('asks what is being added before showing any fields', async () => {
+  it('opens a to-do due today, ready to type, with the type switch showing', async () => {
     const ctx = setup();
     renderToday(ctx);
     await screen.findByText(EMPTY);
 
     await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
-    const dialog = screen.getByRole('dialog', { name: 'What are you adding?' });
-    expect(within(dialog).getByRole('button', { name: 'Daily habit' })).toHaveAccessibleDescription(
-      'Every day, with a streak',
-    );
-    expect(within(dialog).getByRole('button', { name: 'Weekly goal' })).toHaveAccessibleDescription(
-      'A number of times each week',
-    );
-    expect(within(dialog).getByRole('button', { name: 'To-do' })).toHaveAccessibleDescription(
-      'Once, with an optional due date',
-    );
-    expect(within(dialog).queryByLabelText('Name')).toBeNull();
+    const dialog = screen.getByRole('dialog', { name: 'New to-do' });
+    const types = within(dialog).getByRole('group', { name: 'Type' });
+    expect(within(types).getAllByRole('radio').map((radio) => radio.closest('label')?.textContent?.trim())).toEqual([
+      'To-do',
+      'Daily habit',
+      'Weekly goal',
+    ]);
+    expect(within(types).getByRole('radio', { name: 'To-do' })).toBeChecked();
+    expect(types).toHaveAccessibleDescription('Once, with an optional due date');
+    expect(within(dialog).getByLabelText('Due')).toHaveDisplayValue('Today');
+    await waitFor(() => expect(within(dialog).getByLabelText('Name')).toHaveFocus());
     expect(within(dialog).queryByLabelText('Repeats')).toBeNull();
 
     await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
@@ -93,17 +92,45 @@ describe('Today screen', () => {
     expect(await ctx.db.items.count()).toBe(0);
   });
 
-  it('goes back to the choice without saving', async () => {
+  it('saves a quick to-do due today from just a name', async () => {
     const ctx = setup();
     renderToday(ctx);
     await screen.findByText(EMPTY);
-    await startAdding('Weekly goal');
-    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Peloton ride' } });
 
-    await fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Pick up dry cleaning' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
-    expect(screen.getByRole('dialog', { name: 'What are you adding?' })).toBeInTheDocument();
-    expect(await ctx.db.items.count()).toBe(0);
+    const box = await checkbox('Pick up dry cleaning');
+    expect(within(box.closest('li')!).getByText('Today')).toBeInTheDocument();
+    expect(await ctx.db.items.toArray()).toMatchObject([
+      { title: 'Pick up dry cleaning', type: 'todo', dueDate: '2026-10-14' },
+    ]);
+  });
+
+  it('keeps the name when the type is switched, and switching back restores Due', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+    await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Meditate' } });
+
+    await fireEvent.click(screen.getByRole('radio', { name: 'Weekly goal' }));
+    expect(screen.getByRole('dialog', { name: 'New weekly goal' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Times per week')).toHaveValue('3');
+    expect(screen.queryByLabelText('Due')).toBeNull();
+    await fireEvent.click(screen.getByRole('radio', { name: 'To-do' }));
+    expect(screen.getByLabelText('Due')).toHaveDisplayValue('Today');
+
+    await fireEvent.click(screen.getByRole('radio', { name: 'Daily habit' }));
+    expect(screen.getByRole('group', { name: 'Type' })).toHaveAccessibleDescription('Every day, with a streak');
+    expect(screen.getByLabelText('Name')).toHaveValue('Meditate');
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    await checkbox('Meditate');
+    const [stored] = await ctx.db.items.toArray();
+    expect(stored).toMatchObject({ title: 'Meditate', type: 'daily' });
+    expect(stored).not.toHaveProperty('dueDate');
   });
 
   it('saves each choice as its own type', async () => {
@@ -115,6 +142,7 @@ describe('Today screen', () => {
       ['Weekly goal', 'B'],
       ['To-do', 'C'],
     ] as const) {
+      // (This also covers choosing To-do explicitly after the sheet opens on it.)
       await startAdding(kind);
       expect(screen.getByRole('dialog', { name: `New ${kind.toLowerCase()}` })).toBeInTheDocument();
       await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });

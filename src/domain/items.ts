@@ -4,11 +4,14 @@ import { err, ok, type Result } from './result';
 export const ITEM_TYPES = ['daily', 'weekly', 'todo'] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
-/** How each kind of item is named and explained to the user, in the order they are offered. */
+/**
+ * How each kind of item is named and explained, in the order they are offered. To-do comes
+ * first: it is what + starts on, because quick one-off tasks are the most common thing added.
+ */
 export const ITEM_KINDS: readonly { type: ItemType; title: string; description: string }[] = [
+  { type: 'todo', title: 'To-do', description: 'Once, with an optional due date' },
   { type: 'daily', title: 'Daily habit', description: 'Every day, with a streak' },
   { type: 'weekly', title: 'Weekly goal', description: 'A number of times each week' },
-  { type: 'todo', title: 'To-do', description: 'Once, with an optional due date' },
 ];
 
 export const kindTitle = (type: ItemType) => ITEM_KINDS.find((kind) => kind.type === type)!.title;

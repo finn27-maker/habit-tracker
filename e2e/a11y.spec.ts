@@ -55,11 +55,11 @@ async function everyScreen(page: Page, check: (screen: string) => Promise<void>)
   await check('Today');
 
   await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'What are you adding?' })).toBeVisible();
-  await check('What are you adding? choice');
-  await page.getByRole('button', { name: 'To-do', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'New to-do' })).toBeVisible();
   await check('New to-do sheet');
+  await page.getByRole('radio', { name: 'Weekly goal', exact: true }).check();
+  await expect(page.getByRole('dialog', { name: 'New weekly goal' })).toBeVisible();
+  await check('New weekly goal sheet');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.getByRole('link', { name: 'Meditate details' }).click();

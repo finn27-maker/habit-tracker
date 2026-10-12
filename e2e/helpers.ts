@@ -5,10 +5,10 @@ import type { Page } from '@playwright/test';
  * finishes, so a test that reloads right after a tap must first wait for this to settle,
  * or the browser can cancel the save mid-write.
  */
-/** Taps + and answers "What are you adding?". */
+/** Taps + (which opens a to-do due today) and sets the Type switch to `kind`. */
 export async function startAdding(page: Page, kind: 'Daily habit' | 'Weekly goal' | 'To-do') {
   await page.getByRole('button', { name: 'Add', exact: true }).click();
-  await page.getByRole('button', { name: kind, exact: true }).click();
+  await page.getByRole('radio', { name: kind, exact: true }).check();
 }
 
 export const completionCount = (page: Page) => storeCount(page, 'completions');
