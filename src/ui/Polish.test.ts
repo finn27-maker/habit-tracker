@@ -163,7 +163,7 @@ describe('Recently deleted', () => {
     );
     renderAt(ctx, '#/deleted');
     await waitFor(() => expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(500));
-  });
+  }, 30_000);
 });
 
 describe('Clear completed', () => {

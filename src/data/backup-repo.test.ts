@@ -132,7 +132,8 @@ describe('round trip', () => {
     expect(await backup.restore(big)).toEqual({ ok: true, value: undefined });
     const after = await backup.read();
     expect(after.ok && after.value.completions).toHaveLength(20000);
-  });
+    // Correctness only: fake IndexedDB took ~3 s locally and over 5 s on CI (run 38265186753).
+  }, 30_000);
 });
 
 describe('status', () => {
