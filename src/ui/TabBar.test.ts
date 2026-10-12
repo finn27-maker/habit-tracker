@@ -17,6 +17,19 @@ describe('TabBar', () => {
     expect(screen.getByRole('link', { name: 'Lists' })).toHaveAttribute('aria-current', 'page');
   });
 
+  it('shows Today, History and Lists in that order, and marks History when open', () => {
+    render(TabBar, { props: { current: 'history' } });
+    const links = screen.getAllByRole('link');
+    expect(links.map((link) => link.textContent?.trim().split(/\s+/).pop())).toEqual([
+      'Today',
+      'History',
+      'Lists',
+    ]);
+    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute('href', '#/history');
+    expect(screen.getByRole('link', { name: 'History' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Lists' })).not.toHaveAttribute('aria-current');
+  });
+
   it('marks the Today tab as current', () => {
     render(TabBar, { props: { current: 'today' } });
     expect(screen.getByRole('link', { name: 'Today' })).toHaveAttribute('aria-current', 'page');

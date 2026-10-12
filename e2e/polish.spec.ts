@@ -77,7 +77,8 @@ test('+ opens a to-do due today, and a name plus Save adds it', async ({ page })
   await expect(row).toContainText('Today');
   await page.getByRole('button', { name: 'Edit Pick up dry cleaning' }).click();
   await expect(page.getByRole('dialog', { name: 'Edit to-do' })).toBeVisible();
-  await expect(page.getByRole('radio')).toHaveCount(0);
+  // Edit shows the Type switch too (s13), set to what the item is.
+  await expect(page.getByRole('radio', { name: 'To-do', exact: true })).toBeChecked();
 });
 
 // Recorded, with only a pathological slowdown failing: CI runners' WebKit storage is several

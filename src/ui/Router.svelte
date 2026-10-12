@@ -9,6 +9,7 @@
   import BackupBanner from './BackupBanner.svelte';
   import BackupSection from './BackupSection.svelte';
   import DeletedPage from './DeletedPage.svelte';
+  import HistoryPage from './HistoryPage.svelte';
   import InstallBanner from './InstallBanner.svelte';
   import type { InstallHint } from './install-hint.svelte';
   import ShareApp from './ShareApp.svelte';
@@ -75,6 +76,8 @@
     {#key listId}
       <ListPage listId={listId!} {listsRepo} {itemsRepo} {clock} />
     {/key}
+  {:else if route === 'history'}
+    <HistoryPage {listsRepo} {itemsRepo} {clock} />
   {:else if route === 'deleted'}
     <DeletedPage {listsRepo} {itemsRepo} {clock} />
   {:else if route === 'item'}

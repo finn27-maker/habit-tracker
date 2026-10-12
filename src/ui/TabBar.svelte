@@ -2,14 +2,21 @@
   import type { Route } from './route';
 
   let { current }: { current: Route } = $props();
+
+  // List pages and Recently deleted belong to the Lists tab.
+  const tab = $derived(current === 'today' || current === 'history' ? current : 'lists');
 </script>
 
 <nav aria-label="Main">
-  <a href="#/today" aria-current={current === 'today' ? 'page' : undefined}>
+  <a href="#/today" aria-current={tab === 'today' ? 'page' : undefined}>
     <span class="icon" aria-hidden="true">☀️</span>
     Today
   </a>
-  <a href="#/lists" aria-current={current === 'today' ? undefined : 'page'}>
+  <a href="#/history" aria-current={tab === 'history' ? 'page' : undefined}>
+    <span class="icon" aria-hidden="true">📈</span>
+    History
+  </a>
+  <a href="#/lists" aria-current={tab === 'lists' ? 'page' : undefined}>
     <span class="icon" aria-hidden="true">☰</span>
     Lists
   </a>

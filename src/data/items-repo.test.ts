@@ -343,7 +343,7 @@ describe('changing type', () => {
     const { items, db } = await setup();
     await items.create(peloton);
     await db.targetHistory.put({ itemId: 'item-1', effectiveWeekStart: '2026-09-27', target: 4 });
-    await db.targetHistory.delete(['item-1', '2026-10-11']);
+    await db.targetHistory.filter((point) => point.effectiveWeekStart === '2026-10-11').delete();
     await items.update('item-1', { ...peloton, type: 'daily' });
     await items.update('item-1', { ...peloton, type: 'weekly', target: 2 });
     const points = await db.targetHistory.orderBy('[itemId+effectiveWeekStart]').toArray();

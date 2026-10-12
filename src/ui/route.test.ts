@@ -4,6 +4,7 @@ import { itemHash, itemIdFromHash, listHash, listIdFromHash, routeFromHash } fro
 describe('routeFromHash', () => {
   it('maps #/lists to the Lists tab', () => {
     expect(routeFromHash('#/lists')).toBe('lists');
+    expect(routeFromHash('#/history')).toBe('history');
   });
 
   it('maps #/deleted to Recently deleted', () => {

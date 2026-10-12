@@ -65,6 +65,17 @@ async function everyScreen(page: Page, check: (screen: string) => Promise<void>)
   await page.getByRole('link', { name: 'Meditate details' }).click();
   await expect(page.getByRole('heading', { level: 1, name: 'Meditate' })).toBeVisible();
   await check('Habit page');
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('dialog').getByRole('radio', { name: 'To-do', exact: true }).check();
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('alert')).toContainText('Change “Meditate” to a to-do?');
+  await check('Change type confirmation');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+
+  await page.goto('./#/history');
+  await expect(page.getByRole('link', { name: /^Meditate/ })).toBeVisible();
+  await check('History');
 
   await page.goto('./#/lists');
   await expect(page.getByRole('button', { name: 'Export backup' })).toBeEnabled();
@@ -96,6 +107,10 @@ async function everyScreen(page: Page, check: (screen: string) => Promise<void>)
   await page.goto('./#/deleted');
   await expect(page.getByRole('button', { name: 'Restore Old habit' })).toBeVisible();
   await check('Recently deleted');
+  await page.getByRole('button', { name: 'Delete Old habit' }).click();
+  await expect(page.getByRole('alertdialog')).toBeVisible();
+  await check('Delete for good confirmation');
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();
 }
 
 for (const scheme of ['light', 'dark'] as const) {
