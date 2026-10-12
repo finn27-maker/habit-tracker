@@ -179,10 +179,15 @@ Feature: Back up and restore
   # --- Performance ---
 
   @performance
-  Scenario: Three years of history backs up and restores quickly
+  # Revised 2026-10-12 after CI run 38199996229: Linux WebKit on GitHub's runner took ~7 s to
+  # restore 20000 completions where macOS WebKit took under 3 s. Neither is an iPhone, so the
+  # 3-second phone target is a manual check; CI only guards against a pathological slowdown.
+  Scenario: Three years of history backs up and restores without hanging
     Given 10 lists, 60 items and 20000 completions
     When the backup is built, validated and restored
-    Then building and validating each finish under 500 ms and restoring finishes under 3 seconds
+    Then building and validating each finish under 500 ms
+    And "Restoring…" is shown and both backup buttons are disabled until the restore ends
+    And in the CI browsers restoring finishes under 15 seconds, with the time recorded
 
   # --- Integration ---
 

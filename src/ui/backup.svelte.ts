@@ -39,6 +39,8 @@ export class BackupState {
   pending = $state.raw<{ backup: Backup; summary: BackupSummary } | null>(null);
   /** Goes up after each restore so screens can reload what is stored. */
   restores = $state(0);
+  /** True while a restore is being written: a big backup can take a few seconds. */
+  restoring = $state(false);
 
   readonly reminder = $derived(
     backupReminder({
@@ -116,7 +118,10 @@ export class BackupState {
     const pending = this.pending;
     if (!pending) return;
     this.pending = null;
+    this.restoring = true;
+    this.notice = 'Restoring…';
     const restored = await this.#deps.repo.restore(pending.backup.data);
+    this.restoring = false;
     if (!restored.ok) {
       this.notice = restored.error;
       return;

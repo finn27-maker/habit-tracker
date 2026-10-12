@@ -23,8 +23,17 @@
     <p class="notice" role="status">{backup.notice}</p>
   {/if}
   <div class="actions">
-    <button type="button" disabled={!backup.file} onclick={() => backup.export()}>Export backup</button>
-    <button type="button" class="secondary" onclick={() => picker?.click()}>Restore from file</button>
+    <button type="button" disabled={!backup.file || backup.restoring} onclick={() => backup.export()}>
+      Export backup
+    </button>
+    <button
+      type="button"
+      class="secondary"
+      disabled={backup.restoring}
+      onclick={() => picker?.click()}
+    >
+      Restore from file
+    </button>
   </div>
   <input
     bind:this={picker}

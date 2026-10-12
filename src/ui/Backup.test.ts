@@ -179,6 +179,28 @@ describe('restore', () => {
     expect(await storedListNames(ctx)).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
   });
 
+  it('says Restoring… and locks the buttons while a restore is being written', async () => {
+    const ctx = setup();
+    let finish: (value: { ok: true; value: undefined }) => void = () => {};
+    const slow = {
+      ...ctx.backupRepo,
+      restore: () => new Promise<{ ok: true; value: undefined }>((resolve) => (finish = resolve)),
+    };
+    location.hash = '#/lists';
+    render(Router, { props: { ...routerProps(ctx), backupRepo: slow } });
+    await readyToExport();
+    await choose(backupFile());
+    await fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Replace' }));
+
+    expect(await screen.findByText('Restoring…')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore from file' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Export backup' })).toBeDisabled();
+
+    finish({ ok: true, value: undefined });
+    expect(await screen.findByText('Restored the backup from Oct 12, 2026.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Restore from file' })).toBeEnabled();
+  });
+
   it('replaces everything on Replace and shows the restored data', async () => {
     const ctx = setup();
     renderLists(ctx);
