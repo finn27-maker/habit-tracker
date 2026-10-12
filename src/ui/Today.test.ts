@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { ITEMS_LOAD_ERROR } from '../data/items-repo';
 import { LOAD_ERROR, SAVE_ERROR } from '../data/lists-repo';
 import { STARTER_LISTS } from '../domain/lists';
-import { setupApp, type AppCtx } from '../testing/app-fixture';
+import { routerProps, setupApp, type AppCtx } from '../testing/app-fixture';
 import Router from './Router.svelte';
 import Today from './Today.svelte';
 
@@ -15,9 +15,7 @@ type Ctx = AppCtx;
 /** Every screen behind the hash router, starting on Today. */
 function renderApp(ctx: Ctx) {
   location.hash = '';
-  return render(Router, {
-    props: { listsRepo: ctx.listsRepo, itemsRepo: ctx.itemsRepo, clock: ctx.clock },
-  });
+  return render(Router, { props: routerProps(ctx) });
 }
 
 /** From Today: tap the item's name to open its page, then tap Edit there. */

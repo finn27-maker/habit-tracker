@@ -1,12 +1,14 @@
 <script lang="ts">
   import { writable } from 'svelte/store';
   import { registerSW } from 'virtual:pwa-register';
+  import { createBackupRepo } from './data/backup-repo';
   import { createDb } from './data/db';
   import { createItemsRepo } from './data/items-repo';
   import { createListsRepo } from './data/lists-repo';
   import { createClock } from './platform/clock';
   import { isStandalone } from './platform/install';
   import { whenOnline } from './platform/online';
+  import type { ShareEnv } from './platform/share';
   import InstallBanner from './ui/InstallBanner.svelte';
   import Router from './ui/Router.svelte';
   import UpdateToast from './ui/UpdateToast.svelte';
@@ -34,6 +36,21 @@
   const db = createDb();
   const listsRepo = createListsRepo(db);
   const itemsRepo = createItemsRepo(db);
+  const backupRepo = createBackupRepo(db);
+
+  // The share sheet where the browser has one; otherwise (or if it refuses) a download.
+  const share: ShareEnv = {
+    canShare: 'canShare' in navigator ? (data) => navigator.canShare(data) : undefined,
+    share: 'share' in navigator ? (data) => navigator.share(data) : undefined,
+    download: (file) => {
+      const url = URL.createObjectURL(file);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.name;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    },
+  };
 
   // iOS may suspend the app across midnight with no reliable resume event, so "today"
   // is rechecked on every signal we can get plus a 30-second safety interval.
@@ -60,7 +77,7 @@
 
 </script>
 
-<Router {listsRepo} {itemsRepo} {clock}>
+<Router {listsRepo} {itemsRepo} {backupRepo} {share} {clock}>
   <InstallBanner {standalone} />
 </Router>
 

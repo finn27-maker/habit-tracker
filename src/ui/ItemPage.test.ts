@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import { describe, expect, it } from 'vitest';
 import { addDaysToKey } from '../domain/dates';
 import { SAVE_ERROR } from '../data/errors';
-import { setupApp, type AppCtx } from '../testing/app-fixture';
+import { routerProps, setupApp, type AppCtx } from '../testing/app-fixture';
 import ItemPage from './ItemPage.svelte';
 import Router from './Router.svelte';
 
@@ -278,9 +278,7 @@ describe('missing items and safety', () => {
 describe('navigation', () => {
   const renderApp = (ctx: AppCtx, hash: string) => {
     location.hash = hash;
-    return render(Router, {
-      props: { listsRepo: ctx.listsRepo, itemsRepo: ctx.itemsRepo, clock: ctx.clock },
-    });
+    return render(Router, { props: routerProps(ctx) });
   };
 
   it('opens from a list page and goes back to it, with Lists highlighted', async () => {

@@ -13,7 +13,8 @@ import { newId as defaultNewId } from './ids';
 export { SAVE_ERROR };
 export const LOAD_ERROR = "Couldn't load your lists. Close and reopen the app.";
 const NOT_FOUND = 'List not found';
-const STARTERS_SEEDED = 'startersSeeded';
+/** Meta key set once the starter lists exist (or a restore replaced them), so they never reappear. */
+export const STARTERS_SEEDED = 'startersSeeded';
 
 export interface ListsRepoDeps {
   newId?: () => string;

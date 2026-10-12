@@ -4,6 +4,9 @@ import { storedListNames } from './helpers';
 /** Presses a list's reorder handle and drags it `rows` rows (negative = up), then lets go. */
 async function dragRows(page: Page, name: string, rows: number) {
   const handle = page.getByRole('button', { name: `Reorder ${name}` });
+  // The Lists tab can be taller than a phone screen, and the fixed tab bar covers its bottom
+  // edge: centre the handle, as a person would scroll it clear before pressing it.
+  await handle.evaluate((element) => element.scrollIntoView({ block: 'center' }));
   const handleBox = (await handle.boundingBox())!;
   const rowBox = (await page.getByRole('listitem').filter({ has: handle }).boundingBox())!;
   const x = handleBox.x + handleBox.width / 2;
@@ -91,6 +94,8 @@ test('dragging a list to the top reorders Today too, and the handle never scroll
   await expect(groups).toHaveText(['Fitness', 'Personal']);
 
   await page.getByRole('link', { name: 'Lists' }).click();
+  // With habits saved, the backup reminder appears above the lists; let the layout settle.
+  await expect(page.getByRole('complementary', { name: 'Backup reminder' })).toBeVisible();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Move / })).toHaveCount(0);
   const handle = page.getByRole('button', { name: 'Reorder Personal' });

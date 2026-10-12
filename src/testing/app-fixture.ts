@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto';
+import { createBackupRepo } from '../data/backup-repo';
 import { createDb } from '../data/db';
 import { createItemsRepo } from '../data/items-repo';
 import { createListsRepo } from '../data/lists-repo';
 import type { Clock } from '../platform/clock';
+import type { ShareEnv } from '../platform/share';
 
 let dbCounter = 0;
 
@@ -35,10 +37,27 @@ export function setupApp(start = new Date(2026, 9, 14, 9, 0), name = 'ui') {
     },
   };
 
+  // Records what the share sheet and downloads were given, without a real browser.
+  const shared: File[] = [];
+  const downloaded: File[] = [];
+  const share = {
+    canShare: (data: ShareData) => (data.files?.length ?? 0) > 0,
+    share: async (data: ShareData) => {
+      shared.push(...(data.files ?? []));
+    },
+    download: (file: File) => {
+      downloaded.push(file);
+    },
+  } satisfies ShareEnv;
+
   return {
     db,
     listsRepo,
     itemsRepo,
+    backupRepo: createBackupRepo(db),
+    share,
+    shared,
+    downloaded,
     clock,
     /** Moves the clock without telling the screen, like a stale screen after midnight. */
     setNow: (date: Date) => {
@@ -54,3 +73,12 @@ export function setupApp(start = new Date(2026, 9, 14, 9, 0), name = 'ui') {
 }
 
 export type AppCtx = ReturnType<typeof setupApp>;
+
+/** Everything Router.svelte needs, from a fixture. */
+export const routerProps = (ctx: AppCtx) => ({
+  listsRepo: ctx.listsRepo,
+  itemsRepo: ctx.itemsRepo,
+  backupRepo: ctx.backupRepo,
+  share: ctx.share,
+  clock: ctx.clock,
+});
