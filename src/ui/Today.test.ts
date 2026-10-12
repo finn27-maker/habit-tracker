@@ -411,6 +411,177 @@ describe('Today screen', () => {
   });
 });
 
+describe('editing and deleting', () => {
+  const openEdit = async (title: string) =>
+    fireEvent.click(await screen.findByRole('button', { name: `Edit ${title}` }));
+
+  async function deleteViaSheet() {
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+    await fireEvent.click(
+      within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }),
+    );
+  }
+
+  it('opens an edit sheet for a daily habit from its name, without checking it off', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Meditate', 'list-4');
+    renderToday(ctx);
+
+    await openEdit('Meditate');
+
+    const dialog = screen.getByRole('dialog', { name: 'Edit habit' });
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Meditate');
+    expect(within(dialog).getByLabelText('List')).toHaveValue('list-4');
+    expect(within(dialog).queryByLabelText('Repeats')).toBeNull();
+    expect(within(dialog).queryByLabelText('Times per week')).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    expect(await completions(ctx)).toHaveLength(0);
+  });
+
+  it('renames and moves a daily habit and keeps its streak', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Meditate', 'list-4');
+    await ctx.itemsRepo.toggleDay('item-1', '2026-10-13');
+    await ctx.itemsRepo.toggleDay('item-1', '2026-10-14');
+    renderToday(ctx);
+
+    await openEdit('Meditate');
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Meditate 10 min' } });
+    await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-1' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await checkbox('Meditate 10 min')).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('img', { name: '2 day streak' })).toBeInTheDocument();
+    const headings = screen.getAllByRole('heading', { level: 2 });
+    expect(headings.map((h) => h.querySelector('.name')?.textContent)).toEqual(['Fitness']);
+  });
+
+  it('asks before deleting, and Cancel goes back to editing with nothing changed', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Meditate');
+    renderToday(ctx);
+
+    await openEdit('Meditate');
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('Delete "Meditate"? Its history is kept, but it leaves Today.');
+    const buttons = within(dialog).getAllByRole('button').map((b) => b.textContent?.trim());
+    expect(buttons).toEqual(['Cancel', 'Delete']);
+    expect(within(dialog).getByRole('button', { name: 'Delete' }).classList.contains('danger')).toBe(
+      true,
+    );
+
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByLabelText('Name')).toHaveValue('Meditate');
+    expect((await ctx.db.items.get('item-1'))?.archivedAt).toBeUndefined();
+  });
+
+  it('deletes a duplicate daily habit and keeps the weekly goal with the same name', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Peloton ride');
+    await ctx.itemsRepo.create({ title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 });
+    renderToday(ctx);
+    await checkbox('Peloton ride');
+
+    // Both items are called "Peloton ride"; the daily one was added first, so it is listed first.
+    const [dailyName] = await screen.findAllByRole('button', { name: 'Edit Peloton ride' });
+    await fireEvent.click(dailyName!);
+    expect(screen.getByRole('dialog', { name: 'Edit habit' })).toBeInTheDocument();
+    await deleteViaSheet();
+
+    await waitFor(() => expect(screen.queryByRole('checkbox', { name: 'Peloton ride' })).toBeNull());
+    expect(screen.getByRole('button', { name: /^Log Peloton ride/ })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect((await ctx.db.items.get('item-1'))?.archivedAt).toBeDefined();
+    expect((await ctx.db.items.get('item-2'))?.archivedAt).toBeUndefined();
+  });
+
+  it('deletes a weekly goal but keeps its logs and target history', async () => {
+    const ctx = setup();
+    await ctx.listsRepo.ensureStarterLists();
+    await ctx.itemsRepo.create({ title: 'Peloton ride', listId: 'list-1', type: 'weekly', target: 3 });
+    await ctx.itemsRepo.addCompletion('item-1', '2026-10-12');
+    await ctx.itemsRepo.addCompletion('item-1', '2026-10-13');
+    renderToday(ctx);
+
+    await openEdit('Peloton ride');
+    expect(screen.getByRole('dialog', { name: 'Edit weekly goal' })).toBeInTheDocument();
+    await deleteViaSheet();
+
+    expect(await screen.findByText(EMPTY)).toBeInTheDocument();
+    expect(await ctx.db.completions.count()).toBe(2);
+    expect(await ctx.db.targetHistory.count()).toBe(1);
+  });
+
+  it('removes the list header when its last item is deleted', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Stretch', 'list-1');
+    await ctx.itemsRepo.create({ title: 'Meditate', listId: 'list-4', type: 'daily' });
+    renderToday(ctx);
+    await checkbox('Meditate');
+
+    await openEdit('Meditate');
+    await deleteViaSheet();
+
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole('heading', { level: 2 }).map((h) => h.querySelector('.name')?.textContent),
+      ).toEqual(['Fitness']),
+    );
+  });
+
+  it('keeps the item and shows the error when deleting fails', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Meditate');
+    renderToday(ctx);
+    await openEdit('Meditate');
+    ctx.db.close();
+
+    await deleteViaSheet();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(SAVE_ERROR);
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('checkbox', { name: 'Meditate' })).toBeInTheDocument();
+  });
+
+  it('refuses a blank name for a daily habit and keeps the sheet open', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Meditate');
+    renderToday(ctx);
+
+    await openEdit('Meditate');
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: ' ' } });
+    await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("Name can't be empty");
+    expect(screen.getByRole('dialog', { name: 'Edit habit' })).toBeInTheDocument();
+  });
+
+  it('shows a name with HTML as plain text in the delete confirmation', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, '<img src=x onerror=alert(1)>');
+    renderToday(ctx);
+
+    await openEdit('<img src=x onerror=alert(1)>');
+    await fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('Delete "<img src=x onerror=alert(1)>"?');
+    expect(document.querySelectorAll('img')).toHaveLength(0);
+  });
+
+  it('does not offer Delete when adding a new habit', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
+  });
+});
+
 describe('weekly goals on Today', () => {
   const ringName = (title: string, count: number, target: number, met = false) =>
     `Log ${title}, ${count} of ${target} this week${met ? ', goal met' : ''}`;

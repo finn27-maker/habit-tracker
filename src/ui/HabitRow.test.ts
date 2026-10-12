@@ -12,9 +12,10 @@ const row = (overrides: Partial<Omit<DailyRow, 'item' | 'kind'>> = {}): DailyRow
   ...overrides,
 });
 
-const renderRow = (value: DailyRow, onToggle = vi.fn()) => {
-  render(HabitRow, { props: { row: value, onToggle } });
-  return { onToggle, checkbox: screen.getByRole('checkbox', { name: 'Meditate' }) };
+const renderRow = (value: DailyRow) => {
+  const handlers = { onToggle: vi.fn(), onEdit: vi.fn() };
+  render(HabitRow, { props: { row: value, ...handlers } });
+  return { ...handlers, checkbox: screen.getByRole('checkbox', { name: 'Meditate' }) };
 };
 
 describe('HabitRow', () => {
@@ -29,10 +30,20 @@ describe('HabitRow', () => {
     expect(checkbox).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('asks to toggle when tapped', async () => {
-    const { checkbox, onToggle } = renderRow(row());
+  it('toggles when the circle is tapped, without editing', async () => {
+    const { checkbox, onToggle, onEdit } = renderRow(row());
     await fireEvent.click(checkbox);
     expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(onEdit).not.toHaveBeenCalled();
+  });
+
+  it('edits when the name is tapped, without toggling', async () => {
+    const { onToggle, onEdit } = renderRow(row());
+    const name = screen.getByRole('button', { name: 'Edit Meditate' });
+    expect(name).toHaveTextContent('Meditate');
+    await fireEvent.click(name);
+    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(onToggle).not.toHaveBeenCalled();
   });
 
   it.each([

@@ -1,7 +1,11 @@
 <script lang="ts">
   import type { DailyRow } from '../domain/today';
 
-  let { row, onToggle }: { row: DailyRow; onToggle: () => void } = $props();
+  let {
+    row,
+    onToggle,
+    onEdit,
+  }: { row: DailyRow; onToggle: () => void; onEdit: () => void } = $props();
 
   const streakLabel = $derived(`${row.streak} day streak${row.atRisk ? ', not done today' : ''}`);
 </script>
@@ -18,7 +22,9 @@
     <span class="circle" class:done={row.doneToday} aria-hidden="true">
       {#if row.doneToday}✓{/if}
     </span>
-    <span class="title">{row.item.title}</span>
+  </button>
+  <button type="button" class="name" aria-label="Edit {row.item.title}" onclick={onEdit}>
+    {row.item.title}
   </button>
   {#if row.streak > 0}
     <span class="streak" class:risk={row.atRisk} role="img" aria-label={streakLabel}>
@@ -31,27 +37,21 @@
   .row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.25rem;
     min-height: 3.5rem;
-    padding-right: 0.75rem;
+    padding: 0 0.75rem 0 0.5rem;
   }
   .check {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 3.5rem;
-    padding: 0 0 0 0.75rem;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 3rem;
+    height: 3rem;
+    padding: 0;
     border: 0;
     background: transparent;
-    color: var(--text);
-    font: inherit;
-    font-size: 1.0625rem;
-    text-align: left;
   }
   .circle {
-    flex: none;
     display: grid;
     place-items: center;
     width: 1.75rem;
@@ -66,8 +66,17 @@
     border-color: var(--accent);
     background: var(--accent);
   }
-  .title {
+  .name {
+    flex: 1;
     min-width: 0;
+    min-height: 3rem;
+    padding: 0 0.5rem;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    font-size: 1.0625rem;
+    text-align: left;
     overflow-wrap: anywhere;
   }
   .streak {

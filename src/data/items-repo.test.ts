@@ -404,6 +404,57 @@ describe('update', () => {
   });
 });
 
+describe('archive', () => {
+  it('hides the item but keeps its completions and target history', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await items.addCompletion('item-1', '2026-10-12');
+    await items.addCompletion('item-1', '2026-10-14');
+
+    expect(await items.archive('item-1')).toEqual({ ok: true, value: undefined });
+
+    expect((await db.items.get('item-1'))?.archivedAt).toBe(NOW);
+    expect(await db.completions.count()).toBe(2);
+    expect(await db.targetHistory.count()).toBe(1);
+    const active = await items.listActive();
+    expect(active.ok && active.value).toEqual([]);
+  });
+
+  it('leaves other items alone', async () => {
+    const { items } = await setup();
+    await items.create(meditate);
+    await items.create({ ...meditate, title: 'Read' });
+    await items.archive('item-1');
+    const active = await items.listActive();
+    expect(active.ok && active.value.map((item) => item.title)).toEqual(['Read']);
+  });
+
+  it('refuses unknown or already archived items without changing them', async () => {
+    const { items, db } = await setup();
+    await items.create(meditate);
+    await items.archive('item-1');
+    const stamped = (await db.items.get('item-1'))?.archivedAt;
+
+    expect(await items.archive('item-1')).toEqual({ ok: false, error: 'Habit not found' });
+    expect(await items.archive('nope')).toEqual({ ok: false, error: 'Habit not found' });
+    expect((await db.items.get('item-1'))?.archivedAt).toBe(stamped);
+  });
+
+  it('makes every other write refuse the archived item', async () => {
+    const { items } = await setup();
+    await items.create(peloton);
+    await items.create({ ...meditate, title: 'Daily' });
+    await items.archive('item-1');
+    await items.archive('item-2');
+    const gone = { ok: false, error: 'Habit not found' };
+
+    expect(await items.addCompletion('item-1', '2026-10-14')).toEqual(gone);
+    expect(await items.removeLatestCompletion('item-1', '2026-10-11')).toEqual(gone);
+    expect(await items.toggleDay('item-2', '2026-10-14')).toEqual(gone);
+    expect(await items.update('item-2', { title: 'X', listId: 'list-4' })).toEqual(gone);
+  });
+});
+
 describe('listTargets', () => {
   it('groups target records by goal', async () => {
     let clock = NOW;
@@ -452,6 +503,7 @@ describe('storage failures', () => {
       ok: false,
       error: SAVE_ERROR,
     });
+    expect(await items.archive('item-1')).toEqual({ ok: false, error: SAVE_ERROR });
     expect(await items.listActive()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.completionDays()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });
     expect(await items.listTargets()).toEqual({ ok: false, error: ITEMS_LOAD_ERROR });

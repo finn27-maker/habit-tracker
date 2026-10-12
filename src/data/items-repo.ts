@@ -22,6 +22,11 @@ export interface ItemsRepo {
   create(input: { title: string; listId: string; type: string; target?: number }): Promise<Result<Item>>;
   /** Changes name, list and, for weekly goals, the target from the current week onwards. */
   update(itemId: string, input: { title: string; listId: string; target?: number }): Promise<Result<Item>>;
+  /**
+   * "Delete" from the user's point of view: hides the item everywhere but keeps its
+   * completions and target history so a later History screen can show or restore it.
+   */
+  archive(itemId: string): Promise<Result<void>>;
   /** Items that are not archived, ordered by their `order`. */
   listActive(): Promise<Result<Item[]>>;
   /**
@@ -116,6 +121,16 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
             }
           }
           return ok(toItem(record));
+        }),
+      ),
+
+    archive: (itemId) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, async () => {
+          const item = await db.items.get(itemId);
+          if (!item || !isActive(item)) return err(ITEM_NOT_FOUND);
+          await db.items.update(itemId, { archivedAt: now() });
+          return ok(undefined);
         }),
       ),
 

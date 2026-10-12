@@ -6,7 +6,7 @@
   import type { Item, ItemType } from '../domain/items';
   import type { List } from '../domain/lists';
   import type { Result } from '../domain/result';
-  import { buildToday, type WeeklyRow as WeeklyRowModel } from '../domain/today';
+  import { buildToday, type TodayRow } from '../domain/today';
   import { latestDayInWeek, type TargetPoint } from '../domain/weekly';
   import type { Clock } from '../platform/clock';
   import HabitForm from './HabitForm.svelte';
@@ -14,7 +14,7 @@
   import WeeklyRow from './WeeklyRow.svelte';
 
   type FormValues = { title: string; listId: string; type: ItemType; target: number };
-  type FormState = { kind: 'new' } | { kind: 'edit'; row: WeeklyRowModel };
+  type FormState = { kind: 'new' } | { kind: 'edit'; row: TodayRow };
 
   let {
     listsRepo,
@@ -146,15 +146,33 @@
         ? await itemsRepo.update(current.row.item.id, {
             title: values.title,
             listId: values.listId,
-            target: values.target,
+            ...(current.row.kind === 'weekly' ? { target: values.target } : {}),
           })
         : await itemsRepo.create(values);
+    await finishForm(result);
+  }
+
+  async function remove(itemId: string) {
+    await finishForm(await itemsRepo.archive(itemId));
+  }
+
+  /** Closes the sheet and refreshes on success; otherwise keeps it open with the error. */
+  async function finishForm(result: Result<unknown>) {
     if (!result.ok) {
       formError = result.error;
       return;
     }
     form = null;
     await refresh();
+  }
+
+  function editValues(row: TodayRow): FormValues {
+    return {
+      title: row.item.title,
+      listId: row.item.listId,
+      type: row.item.type,
+      target: row.kind === 'weekly' ? row.target : 3,
+    };
   }
 </script>
 
@@ -181,7 +199,11 @@
     <ul class="rows">
       {#each group.rows as row (row.item.id)}
         {#if row.kind === 'daily'}
-          <HabitRow {row} onToggle={() => toggle(row.item.id)} />
+          <HabitRow
+            {row}
+            onToggle={() => toggle(row.item.id)}
+            onEdit={() => openForm({ kind: 'edit', row })}
+          />
         {:else}
           <WeeklyRow
             {row}
@@ -206,16 +228,10 @@
   <HabitForm
     {lists}
     error={formError}
-    initial={current.kind === 'edit'
-      ? {
-          title: current.row.item.title,
-          listId: current.row.item.listId,
-          type: current.row.item.type,
-          target: current.row.target,
-        }
-      : undefined}
+    initial={current.kind === 'edit' ? editValues(current.row) : undefined}
     onSubmit={(values) => save(current, values)}
     onCancel={() => (form = null)}
+    onDelete={current.kind === 'edit' ? () => remove(current.row.item.id) : undefined}
   />
 {/if}
 
