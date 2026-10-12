@@ -56,11 +56,11 @@ test('habits are grouped under their list headers in list order', async ({ page 
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
   await addHabit(page, 'Inbox zero', '💼 Work');
-  await addHabit(page, 'Stretch', '🏋️ Fitness');
+  await addHabit(page, 'Stretch', '💪 Health');
 
   const headers = page.getByRole('heading', { level: 2 }).locator('.name');
-  await expect(headers).toHaveText(['Fitness', 'Work']);
-  const fitness = page.getByRole('region', { name: /Fitness/ });
+  await expect(headers).toHaveText(['Health', 'Work']);
+  const fitness = page.getByRole('region', { name: /Health/ });
   await expect(fitness.getByRole('checkbox', { name: 'Stretch' })).toBeVisible();
   const work = page.getByRole('region', { name: /Work/ });
   await expect(work.getByRole('checkbox', { name: 'Inbox zero' })).toBeVisible();
@@ -71,7 +71,7 @@ test('the new-habit sheet starts on the first list and rejects a blank name', as
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
   await startAdding(page, 'Daily habit');
 
-  await expect(page.getByLabel('List').locator('option:checked')).toContainText('Fitness');
+  await expect(page.getByLabel('List').locator('option:checked')).toContainText('Health');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('alert')).toHaveText("Name can't be empty");
   await expect(page.getByRole('dialog', { name: 'New daily habit' })).toBeVisible();

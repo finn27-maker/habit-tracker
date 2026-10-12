@@ -53,7 +53,7 @@ test('a weekly goal sits beside daily habits under its list', async ({ page }) =
   await expect(page.getByRole('dialog')).toBeHidden();
   await addWeekly(page, 'Peloton ride');
 
-  const fitness = page.getByRole('region', { name: /Fitness/ });
+  const fitness = page.getByRole('region', { name: /Health/ });
   const rows = fitness.getByRole('listitem');
   await expect(rows).toHaveCount(2);
   await expect(rows.nth(0).getByRole('checkbox', { name: 'Stretch' })).toBeVisible();

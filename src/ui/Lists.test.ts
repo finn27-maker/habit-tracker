@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDb } from '../data/db';
 import { LOAD_ERROR, SAVE_ERROR, createListsRepo } from '../data/lists-repo';
 import { LIST_COLORS } from '../domain/lists';
+import { FIXTURE_LISTS } from '../testing/fixture-lists';
 import Lists from './Lists.svelte';
 
 let dbCounter = 0;
@@ -11,7 +12,11 @@ let dbCounter = 0;
 function setup() {
   const db = createDb(`lists-ui-${++dbCounter}`);
   let n = 0;
-  const repo = createListsRepo(db, { newId: () => `id-${++n}`, now: () => 1_000 });
+  const repo = createListsRepo(db, {
+    newId: () => `id-${++n}`,
+    now: () => 1_000,
+    starters: FIXTURE_LISTS,
+  });
   return { db, repo };
 }
 

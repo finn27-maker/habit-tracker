@@ -19,11 +19,11 @@ async function addItem(
 async function seed(page: Page) {
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
-  await addItem(page, 'Meditate', 'Daily habit', '🏠 Personal');
-  await addItem(page, 'Peloton ride', 'Weekly goal', '🏠 Personal');
-  await addItem(page, 'Call mom', 'To-do', '🏠 Personal');
-  await addItem(page, 'Pay rent', 'To-do', '🏠 Personal');
-  await addItem(page, 'Old habit', 'Daily habit', '🏠 Personal');
+  await addItem(page, 'Meditate', 'Daily habit', '⭐ Personal');
+  await addItem(page, 'Peloton ride', 'Weekly goal', '⭐ Personal');
+  await addItem(page, 'Call mom', 'To-do', '⭐ Personal');
+  await addItem(page, 'Pay rent', 'To-do', '⭐ Personal');
+  await addItem(page, 'Old habit', 'Daily habit', '⭐ Personal');
   await page.getByRole('checkbox', { name: 'Meditate' }).click();
   await expect.poll(() => completionCount(page)).toBe(1);
   await page.getByRole('checkbox', { name: 'Pay rent' }).click();

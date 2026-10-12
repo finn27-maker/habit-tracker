@@ -7,6 +7,7 @@ import { createDb } from './db';
 import { SAVE_ERROR } from './errors';
 import { createItemsRepo } from './items-repo';
 import { createListsRepo } from './lists-repo';
+import { FIXTURE_LISTS } from '../testing/fixture-lists';
 
 let dbCounter = 0;
 const NOW = new Date(2026, 9, 14, 9, 0).getTime();
@@ -14,7 +15,7 @@ const NOW = new Date(2026, 9, 14, 9, 0).getTime();
 async function setup() {
   const db = createDb(`backup-repo-${++dbCounter}`);
   let n = 0;
-  const lists = createListsRepo(db, { newId: () => `list-${++n}` });
+  const lists = createListsRepo(db, { newId: () => `list-${++n}`, starters: FIXTURE_LISTS });
   const items = createItemsRepo(db, { newId: () => `id-${++n}`, now: () => NOW });
   const backup = createBackupRepo(db);
   await lists.ensureStarterLists();

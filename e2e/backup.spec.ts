@@ -109,7 +109,7 @@ test('a file that is not a backup is refused and nothing changes', async ({ page
   });
   await expect(page.getByText("This file isn't a Habit Tracker backup.")).toBeVisible();
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await expect(page.locator('.name')).toHaveText(['Fitness', 'Work', 'Side Business', 'Personal']);
+  await expect(page.locator('.name')).toHaveText(['Health', 'Home', 'Work', 'Personal']);
 });
 
 // The time is recorded, but only a pathological slowdown fails: Linux WebKit on GitHub's runner

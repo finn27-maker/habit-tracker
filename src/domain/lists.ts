@@ -29,12 +29,12 @@ export interface List extends ListInput {
 
 export const MAX_NAME_LENGTH = 40;
 
-/** Created once on first run so the app is useful straight away. */
+/** Created empty, once, on first run: generic areas anyone trying the app can rename or delete. */
 export const STARTER_LISTS: readonly ListInput[] = [
-  { name: 'Fitness', emoji: '🏋️', color: 'orange' },
+  { name: 'Health', emoji: '💪', color: 'orange' },
+  { name: 'Home', emoji: '🏡', color: 'green' },
   { name: 'Work', emoji: '💼', color: 'blue' },
-  { name: 'Side Business', emoji: '🚀', color: 'purple' },
-  { name: 'Personal', emoji: '🏠', color: 'green' },
+  { name: 'Personal', emoji: '⭐', color: 'purple' },
 ];
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });

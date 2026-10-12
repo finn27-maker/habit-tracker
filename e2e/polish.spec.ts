@@ -5,7 +5,7 @@ async function addItem(
   page: Page,
   name: string,
   kind: 'Daily habit' | 'Weekly goal' | 'To-do' = 'Daily habit',
-  list = '🏠 Personal',
+  list = '⭐ Personal',
 ) {
   await startAdding(page, kind);
   await page.getByLabel('Name').fill(name);
@@ -138,13 +138,13 @@ test('clearing completed to-dos moves them to Recently deleted', async ({ page }
 });
 
 test('dragging a goal above a habit on a list page changes Today’s order', async ({ page }) => {
-  await addItem(page, 'Stretch', 'Daily habit', '🏋️ Fitness');
-  await addItem(page, 'Peloton ride', 'Weekly goal', '🏋️ Fitness');
-  const fitness = page.getByRole('region', { name: 'Fitness' });
+  await addItem(page, 'Stretch', 'Daily habit', '💪 Health');
+  await addItem(page, 'Peloton ride', 'Weekly goal', '💪 Health');
+  const fitness = page.getByRole('region', { name: 'Health' });
   await expect(fitness.getByRole('link')).toHaveText(['Stretch', 'Peloton ride']);
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Lists' }).click();
-  await page.getByRole('link', { name: 'Fitness' }).click();
+  await page.getByRole('link', { name: 'Health' }).click();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
 
   const handle = page.getByRole('button', { name: 'Reorder Peloton ride' });

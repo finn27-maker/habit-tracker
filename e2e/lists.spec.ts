@@ -36,12 +36,20 @@ test('an unknown route falls back to Today', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
 });
 
-test('first open shows the four starter lists', async ({ page }) => {
+test('first open shows the four generic starter lists, all empty', async ({ page }) => {
+  const started = Date.now();
   await page.goto('./#/lists');
   const rows = page.getByRole('listitem');
   await expect(rows).toHaveCount(4);
-  await expect(rows.locator('.name')).toHaveText(['Fitness', 'Work', 'Side Business', 'Personal']);
-  await expect(rows.first()).toContainText('🏋');
+  const ms = Date.now() - started;
+  test.info().annotations.push({ type: 'first-launch-ms', description: String(ms) });
+  expect(ms).toBeLessThan(5_000);
+  await expect(rows.locator('.name')).toHaveText(['Health', 'Home', 'Work', 'Personal']);
+  await expect(rows.first()).toContainText('💪');
+  await expect(rows.last()).toContainText('⭐');
+
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(page.locator('h2 .name')).toHaveCount(0);
 });
 
 test('a new list and a reorder survive a reload', async ({ page }) => {
@@ -57,25 +65,13 @@ test('a new list and a reorder survive a reload', async ({ page }) => {
 
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   await dragRows(page, 'Reading', -1);
-  await expect(page.locator('.name')).toHaveText([
-    'Fitness',
-    'Work',
-    'Side Business',
-    'Reading',
-    'Personal',
-  ]);
+  await expect(page.locator('.name')).toHaveText(['Health', 'Home', 'Work', 'Reading', 'Personal']);
   await expect
     .poll(() => storedListNames(page))
-    .toEqual(['Fitness', 'Work', 'Side Business', 'Reading', 'Personal']);
+    .toEqual(['Health', 'Home', 'Work', 'Reading', 'Personal']);
 
   await page.reload();
-  await expect(page.locator('.name')).toHaveText([
-    'Fitness',
-    'Work',
-    'Side Business',
-    'Reading',
-    'Personal',
-  ]);
+  await expect(page.locator('.name')).toHaveText(['Health', 'Home', 'Work', 'Reading', 'Personal']);
 });
 
 test('dragging a list to the top reorders Today too, and the handle never scrolls', async ({
@@ -88,17 +84,17 @@ test('dragging a list to the top reorders Today too, and the handle never scroll
   await expect(page.getByRole('dialog')).toBeHidden();
   await startAdding(page, 'To-do');
   await page.getByLabel('Name').fill('Call mom');
-  await page.getByLabel('List').selectOption({ label: '🏠 Personal' });
+  await page.getByLabel('List').selectOption({ label: '⭐ Personal' });
   await page.getByRole('button', { name: 'Save' }).click();
   const groups = page.locator('h2 .name');
-  await expect(groups).toHaveText(['Fitness', 'Personal']);
+  await expect(groups).toHaveText(['Health', 'Personal']);
 
   await page.getByRole('link', { name: 'Lists' }).click();
   // With habits saved, the backup reminder appears above the lists; let the layout settle.
   await expect(page.getByRole('complementary', { name: 'Backup reminder' })).toBeVisible();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
   // The Move buttons are there for VoiceOver only: 1 px until focused, full size once focused.
-  const moveDown = page.getByRole('button', { name: 'Move Fitness down' });
+  const moveDown = page.getByRole('button', { name: 'Move Health down' });
   expect((await moveDown.boundingBox())!.width).toBeLessThanOrEqual(1);
   await moveDown.focus();
   const focused = (await moveDown.boundingBox())!;
@@ -109,15 +105,13 @@ test('dragging a list to the top reorders Today too, and the handle never scroll
   await expect(handle).toHaveCSS('touch-action', 'none');
 
   await dragRows(page, 'Personal', -3);
-  await expect(page.locator('.name')).toHaveText(['Personal', 'Fitness', 'Work', 'Side Business']);
-  await expect
-    .poll(() => storedListNames(page))
-    .toEqual(['Personal', 'Fitness', 'Work', 'Side Business']);
+  await expect(page.locator('.name')).toHaveText(['Personal', 'Health', 'Home', 'Work']);
+  await expect.poll(() => storedListNames(page)).toEqual(['Personal', 'Health', 'Home', 'Work']);
 
   await page.getByRole('link', { name: 'Today' }).click();
-  await expect(groups).toHaveText(['Personal', 'Fitness']);
+  await expect(groups).toHaveText(['Personal', 'Health']);
   await page.reload();
-  await expect(groups).toHaveText(['Personal', 'Fitness']);
+  await expect(groups).toHaveText(['Personal', 'Health']);
 });
 
 test('deleting a starter list sticks, and the starters never come back', async ({ page }) => {

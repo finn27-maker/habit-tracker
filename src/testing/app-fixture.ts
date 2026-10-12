@@ -5,6 +5,7 @@ import { createItemsRepo } from '../data/items-repo';
 import { createListsRepo } from '../data/lists-repo';
 import type { Clock } from '../platform/clock';
 import type { ShareEnv } from '../platform/share';
+import { FIXTURE_LISTS } from './fixture-lists';
 
 let dbCounter = 0;
 
@@ -16,7 +17,11 @@ export function setupApp(start = new Date(2026, 9, 14, 9, 0), name = 'ui') {
   const db = createDb(`${name}-${++dbCounter}`);
   let l = 0;
   let i = 0;
-  const listsRepo = createListsRepo(db, { newId: () => `list-${++l}`, now: () => 1_000 });
+  const listsRepo = createListsRepo(db, {
+    newId: () => `list-${++l}`,
+    now: () => 1_000,
+    starters: FIXTURE_LISTS,
+  });
   let current = start;
   // The repository reads the same clock as the screen, as in the app: weekly goals record
   // their first target in the week of "now", to-dos are stamped with it, and days after it

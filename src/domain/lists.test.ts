@@ -69,12 +69,12 @@ describe('isSingleEmoji', () => {
 });
 
 describe('STARTER_LISTS', () => {
-  it('are the four life areas in order', () => {
-    expect(STARTER_LISTS.map((l) => l.name)).toEqual([
-      'Fitness',
-      'Work',
-      'Side Business',
-      'Personal',
+  it('are the four generic life areas in order', () => {
+    expect(STARTER_LISTS.map((l) => `${l.emoji} ${l.name} ${l.color}`)).toEqual([
+      '💪 Health orange',
+      '🏡 Home green',
+      '💼 Work blue',
+      '⭐ Personal purple',
     ]);
   });
 

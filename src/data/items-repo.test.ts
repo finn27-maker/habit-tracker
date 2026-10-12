@@ -4,6 +4,7 @@ import { dayKey } from '../domain/dates';
 import { createDb } from './db';
 import { ITEMS_LOAD_ERROR, createItemsRepo } from './items-repo';
 import { SAVE_ERROR, createListsRepo } from './lists-repo';
+import { FIXTURE_LISTS } from '../testing/fixture-lists';
 
 let dbCounter = 0;
 
@@ -15,7 +16,7 @@ async function setup(now: () => number = () => NOW) {
   const db = createDb(`items-repo-${++dbCounter}`);
   let l = 0;
   let i = 0;
-  const lists = createListsRepo(db, { newId: () => `list-${++l}` });
+  const lists = createListsRepo(db, { newId: () => `list-${++l}`, starters: FIXTURE_LISTS });
   const items = createItemsRepo(db, { newId: () => `item-${++i}`, now });
   await lists.ensureStarterLists(); // list-1 Fitness, list-2 Work, list-3 Side Business, list-4 Personal
   return { db, lists, items };

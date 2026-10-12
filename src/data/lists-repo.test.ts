@@ -2,13 +2,18 @@ import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
 import { createDb, type ItemRecord } from './db';
 import { LOAD_ERROR, SAVE_ERROR, createListsRepo } from './lists-repo';
+import { FIXTURE_LISTS } from '../testing/fixture-lists';
 
 let dbCounter = 0;
 
 function setup(prefix = 'id') {
   const db = createDb(`lists-repo-${++dbCounter}`);
   let n = 0;
-  const repo = createListsRepo(db, { newId: () => `${prefix}-${++n}`, now: () => 5_000 });
+  const repo = createListsRepo(db, {
+    newId: () => `${prefix}-${++n}`,
+    now: () => 5_000,
+    starters: FIXTURE_LISTS,
+  });
   return { db, repo };
 }
 
@@ -44,19 +49,38 @@ describe('default dependencies', () => {
 });
 
 describe('ensureStarterLists', () => {
-  it('seeds the four starter lists in order', async () => {
-    const { repo } = setup();
+  it('seeds the four generic starter lists, empty and in order, by default', async () => {
+    const db = createDb(`lists-repo-${++dbCounter}`);
+    let n = 0;
+    const repo = createListsRepo(db, { newId: () => `id-${++n}` });
     expect((await repo.ensureStarterLists()).ok).toBe(true);
     const all = await repo.getAll();
     expect(all).toEqual({
       ok: true,
       value: [
-        { id: 'id-1', name: 'Fitness', emoji: '🏋️', color: 'orange', order: 0 },
-        { id: 'id-2', name: 'Work', emoji: '💼', color: 'blue', order: 1 },
-        { id: 'id-3', name: 'Side Business', emoji: '🚀', color: 'purple', order: 2 },
-        { id: 'id-4', name: 'Personal', emoji: '🏠', color: 'green', order: 3 },
+        { id: 'id-1', name: 'Health', emoji: '💪', color: 'orange', order: 0 },
+        { id: 'id-2', name: 'Home', emoji: '🏡', color: 'green', order: 1 },
+        { id: 'id-3', name: 'Work', emoji: '💼', color: 'blue', order: 2 },
+        { id: 'id-4', name: 'Personal', emoji: '⭐', color: 'purple', order: 3 },
       ],
     });
+    expect(await db.items.count()).toBe(0);
+  });
+
+  it('seeds the lists it is given instead', async () => {
+    const { repo } = setup();
+    await repo.ensureStarterLists();
+    expect(await names(repo)).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
+  });
+
+  it('leaves a phone that already has lists alone', async () => {
+    const db = createDb(`lists-repo-${++dbCounter}`);
+    const old = createListsRepo(db, { starters: FIXTURE_LISTS });
+    await old.ensureStarterLists();
+    const updated = createListsRepo(db);
+    await updated.ensureStarterLists();
+    const all = await updated.getAll();
+    expect(all.ok && all.value.map((l) => l.name)).toEqual(['Fitness', 'Work', 'Side Business', 'Personal']);
   });
 
   it('seeds only once, even when two app instances race', async () => {

@@ -24,7 +24,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('a to-do is checked off, moves to Completed, and can be restored', async ({ page }) => {
-  await addTodo(page, 'Clean garage', '🏠 Personal');
+  await addTodo(page, 'Clean garage', '⭐ Personal');
   const box = page.getByRole('checkbox', { name: 'Clean garage' });
   await expect(page.getByRole('region', { name: 'Personal' })).toContainText('Clean garage');
 
@@ -60,7 +60,7 @@ test('a to-do is checked off, moves to Completed, and can be restored', async ({
 });
 
 test('a to-do due tomorrow waits on its list page', async ({ page }) => {
-  await addTodo(page, 'Call mom', '🏠 Personal', 'Tomorrow');
+  await addTodo(page, 'Call mom', '⭐ Personal', 'Tomorrow');
   await expect(page.getByRole('checkbox', { name: 'Call mom' })).toHaveCount(0);
 
   await page.getByRole('link', { name: 'Lists' }).click();
@@ -91,7 +91,7 @@ test('a missing list says so', async ({ page }) => {
 });
 
 test('to-do controls are at least 44 by 44 pixels', async ({ page }) => {
-  await addTodo(page, 'Clean garage', '🏠 Personal');
+  await addTodo(page, 'Clean garage', '⭐ Personal');
   for (const target of [
     page.getByRole('checkbox', { name: 'Clean garage' }),
     page.getByRole('button', { name: 'Edit Clean garage' }),

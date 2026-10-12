@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/sve
 import { describe, expect, it } from 'vitest';
 import { ITEMS_LOAD_ERROR } from '../data/items-repo';
 import { LOAD_ERROR, SAVE_ERROR } from '../data/lists-repo';
-import { STARTER_LISTS } from '../domain/lists';
+import { FIXTURE_LISTS } from '../testing/fixture-lists';
 import { routerProps, setupApp, type AppCtx } from '../testing/app-fixture';
 import Router from './Router.svelte';
 import Today from './Today.svelte';
@@ -186,7 +186,7 @@ describe('Today screen', () => {
     const select = screen.getByLabelText('List');
     expect(select).toHaveValue('list-1');
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(
-      STARTER_LISTS.map((list) => `${list.emoji} ${list.name}`),
+      FIXTURE_LISTS.map((list) => `${list.emoji} ${list.name}`),
     );
   });
 

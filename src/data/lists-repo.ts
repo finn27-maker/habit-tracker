@@ -4,6 +4,7 @@ import {
   validateListInput,
   type List,
   type ListColor,
+  type ListInput,
 } from '../domain/lists';
 import { err, ok, type Result } from '../domain/result';
 import type { HabitDb, ListRecord } from './db';
@@ -19,6 +20,8 @@ export const STARTERS_SEEDED = 'startersSeeded';
 export interface ListsRepoDeps {
   newId?: () => string;
   now?: () => number;
+  /** Lists seeded on first run; defaults to STARTER_LISTS. */
+  starters?: readonly ListInput[];
 }
 
 export interface ListsRepo {
@@ -39,6 +42,7 @@ const toList = (record: ListRecord): List => ({ ...record, color: record.color a
 export function createListsRepo(db: HabitDb, deps: ListsRepoDeps = {}): ListsRepo {
   const newId = deps.newId ?? defaultNewId;
   const now = deps.now ?? Date.now;
+  const starters = deps.starters ?? STARTER_LISTS;
   const ordered = () => db.lists.orderBy('order').toArray();
 
   return {
@@ -47,7 +51,7 @@ export function createListsRepo(db: HabitDb, deps: ListsRepoDeps = {}): ListsRep
         db.transaction('rw', db.lists, db.meta, async () => {
           if (await db.meta.get(STARTERS_SEEDED)) return ok(undefined);
           await db.lists.bulkAdd(
-            STARTER_LISTS.map((list, order) => ({ id: newId(), ...list, order })),
+            starters.map((list, order) => ({ id: newId(), ...list, order })),
           );
           await db.meta.put({ key: STARTERS_SEEDED, value: true });
           return ok(undefined);
