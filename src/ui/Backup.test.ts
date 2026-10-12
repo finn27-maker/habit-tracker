@@ -306,19 +306,19 @@ describe('reminder banner', () => {
     await waitFor(() => expect(banner()).toHaveTextContent("You haven't backed up yet."));
   });
 
-  it('reminds after more than 30 days, and not with nothing to save or a recent backup', async () => {
+  it('reminds after more than a week, and not with nothing to save or a recent backup', async () => {
     const overdue = setup();
     await withHabit(overdue);
-    await overdue.backupRepo.markBackedUp(NOW.getTime() - 31 * DAY);
+    await overdue.backupRepo.markBackedUp(NOW.getTime() - 8 * DAY);
     const first = renderLists(overdue);
     await waitFor(() =>
-      expect(banner()).toHaveTextContent("It's been over 30 days since your last backup."),
+      expect(banner()).toHaveTextContent("It's been over a week since your last backup."),
     );
     first.unmount();
 
     const recent = setup();
     await withHabit(recent);
-    await recent.backupRepo.markBackedUp(NOW.getTime() - 24 * DAY);
+    await recent.backupRepo.markBackedUp(NOW.getTime() - 6 * DAY);
     const second = renderLists(recent);
     await readyToExport();
     expect(banner()).toBeNull();
@@ -330,7 +330,28 @@ describe('reminder banner', () => {
     expect(banner()).toBeNull();
   });
 
-  it('hides for 7 days after "Not now"', async () => {
+  it('shows on Today too, and backing up there includes what was just checked off', async () => {
+    const ctx = setup();
+    await withHabit(ctx);
+    location.hash = '#/today';
+    render(Router, { props: routerProps(ctx) });
+    await waitFor(() => expect(banner()).toHaveTextContent("You haven't backed up yet."));
+    const button = screen.getByRole('button', { name: 'Back up now' });
+    await waitFor(() => expect(button).toBeEnabled());
+
+    // Check off after the file was first built; pressing the button rebuilds it.
+    await fireEvent.click(await screen.findByRole('checkbox', { name: 'Meditate' }));
+    await waitFor(async () => expect(await ctx.db.completions.count()).toBe(1));
+    await fireEvent.pointerDown(button);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await fireEvent.click(button);
+
+    await waitFor(() => expect(banner()).toBeNull());
+    const backup = JSON.parse(await ctx.shared[0]!.text());
+    expect(backup.data.completions.map((c: { dayKey: string }) => c.dayKey)).toEqual(['2026-10-14']);
+  });
+
+  it('hides for a day after "Not now"', async () => {
     const ctx = setup();
     await withHabit(ctx);
     renderLists(ctx);
@@ -341,7 +362,7 @@ describe('reminder banner', () => {
     await waitFor(() => expect(banner()).toBeNull());
     expect(await ctx.backupRepo.status()).toEqual({
       ok: true,
-      value: { lastBackupAt: null, snoozedUntil: NOW.getTime() + 7 * DAY },
+      value: { lastBackupAt: null, snoozedUntil: NOW.getTime() + DAY },
     });
   });
 

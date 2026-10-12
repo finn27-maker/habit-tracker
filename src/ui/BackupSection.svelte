@@ -23,7 +23,12 @@
     <p class="notice" role="status">{backup.notice}</p>
   {/if}
   <div class="actions">
-    <button type="button" disabled={!backup.file || backup.restoring} onclick={() => backup.export()}>
+    <button
+      type="button"
+      disabled={!backup.file || backup.restoring}
+      onpointerdown={() => backup.refresh()}
+      onclick={() => backup.export()}
+    >
       Export backup
     </button>
     <button

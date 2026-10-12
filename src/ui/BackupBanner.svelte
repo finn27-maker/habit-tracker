@@ -9,11 +9,20 @@
     <p>
       {backup.reminder === 'never'
         ? "You haven't backed up yet."
-        : "It's been over 30 days since your last backup."}
+        : "It's been over a week since your last backup."}
     </p>
     <div class="buttons">
       <button type="button" class="later" onclick={() => backup.snooze()}>Not now</button>
-      <button type="button" disabled={!backup.file} onclick={() => backup.export()}>Back up now</button>
+      <!-- Rebuilding on press (before the tap completes) picks up anything just checked off,
+           while the share itself still runs straight from the tap. -->
+      <button
+        type="button"
+        disabled={!backup.file}
+        onpointerdown={() => backup.refresh()}
+        onclick={() => backup.export()}
+      >
+        Back up now
+      </button>
     </div>
   </aside>
 {/if}

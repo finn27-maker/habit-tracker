@@ -43,9 +43,10 @@
   const listId = $derived(listIdFromHash(hash));
   const itemId = $derived(itemIdFromHash(hash));
 
-  // Rebuild the backup file whenever the Lists tab opens, so it holds today's data.
+  // Rebuild the backup file whenever Today or the Lists tab opens (both show the reminder card),
+  // so it holds the latest data; pressing a backup button refreshes it again.
   $effect(() => {
-    if (route === 'lists') untrack(() => void backup.load());
+    if (route === 'lists' || route === 'today') untrack(() => void backup.load());
   });
 
   function navigated() {
@@ -75,6 +76,7 @@
       <ItemPage itemId={itemId!} {backHref} {listsRepo} {itemsRepo} {clock} />
     {/key}
   {:else}
+    <BackupBanner {backup} />
     <Today {listsRepo} {itemsRepo} {clock} />
   {/if}
 </main>

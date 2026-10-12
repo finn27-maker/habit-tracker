@@ -150,6 +150,38 @@ test('three years of history restores, showing Restoring… meanwhile', async ({
   await expect(page.getByRole('checkbox', { name: 'Read' })).toBeVisible();
 });
 
+test('a week after a backup, Today shows a one-tap Back up now card', async ({ page }) => {
+  await stubShare(page, true);
+  await page.goto('./');
+  await addHabit(page, 'Meditate');
+  // The card reads backup status when Today opens; with something to save, it shows next open.
+  await page.reload();
+  const card = page.getByRole('complementary', { name: 'Backup reminder' });
+  await expect(card).toContainText("You haven't backed up yet.");
+  await card.getByRole('button', { name: 'Back up now' }).click();
+  await expect(card).toHaveCount(0);
+  expect(await sharedFiles(page)).toHaveLength(1);
+
+  // Six days later: still fresh. Eight days later: the card is back on Today.
+  const DAY = 24 * 60 * 60 * 1000;
+  await page.clock.fastForward(6 * DAY);
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: 'Meditate' })).toBeVisible();
+  await expect(card).toHaveCount(0);
+  await page.clock.fastForward(2 * DAY);
+  await page.reload();
+  await expect(card).toContainText("It's been over a week since your last backup.");
+  for (const name of ['Back up now', 'Not now']) {
+    expect((await card.getByRole('button', { name }).boundingBox())!.height).toBeGreaterThanOrEqual(43.5);
+  }
+
+  await card.getByRole('button', { name: 'Not now' }).click();
+  await expect(card).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('checkbox', { name: 'Meditate' })).toBeVisible();
+  await expect(card).toHaveCount(0);
+});
+
 test('backup controls are large enough, and Not now hides the reminder', async ({ page }) => {
   await stubShare(page, true);
   await page.goto('./');

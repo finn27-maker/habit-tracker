@@ -13,10 +13,10 @@ export const BACKUP_DAMAGED = "This backup file is damaged and can't be restored
 export const BACKUP_TOO_LARGE = 'This file is too large to be a Habit Tracker backup.';
 
 const DAY = 24 * 60 * 60 * 1000;
-/** Remind once the last backup is more than this old. */
-export const REMINDER_AFTER_MS = 30 * DAY;
-/** "Not now" hides the reminder for this long. */
-export const SNOOZE_MS = 7 * DAY;
+/** Remind once the last backup is more than a week old (the user chose weekly). */
+export const REMINDER_AFTER_MS = 7 * DAY;
+/** "Not now" hides the reminder until the same time tomorrow. */
+export const SNOOZE_MS = 1 * DAY;
 
 export interface BackupList {
   id: string;

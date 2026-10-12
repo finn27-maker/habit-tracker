@@ -7,6 +7,8 @@ import {
   BACKUP_TOO_LARGE,
   MAX_BACKUP_BYTES,
   NOT_A_BACKUP,
+  REMINDER_AFTER_MS,
+  SNOOZE_MS,
   backupDateLabel,
   backupFileName,
   backupReminder,
@@ -151,10 +153,16 @@ describe('backupReminder', () => {
     expect(backupReminder({ ...base, hasItems: false })).toBe('none');
   });
 
-  it('reminds after more than 30 days, not before', () => {
-    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 31 * DAY })).toBe('overdue');
-    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 30 * DAY })).toBe('none');
-    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 24 * DAY })).toBe('none');
+  it('reminds once the last backup is more than a week old, not before', () => {
+    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 8 * DAY })).toBe('overdue');
+    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 7 * DAY - 1 })).toBe('overdue');
+    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 7 * DAY })).toBe('none');
+    expect(backupReminder({ ...base, lastBackupAt: NOW.getTime() - 6 * DAY })).toBe('none');
+  });
+
+  it('snoozes for a day and reminds weekly', () => {
+    expect(SNOOZE_MS).toBe(DAY);
+    expect(REMINDER_AFTER_MS).toBe(7 * DAY);
   });
 
   it('stays quiet while snoozed', () => {

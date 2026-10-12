@@ -71,6 +71,14 @@ export class BackupState {
     await this.#prepare();
   }
 
+  /**
+   * Rebuilds the file from what is stored now. Called as a backup button is pressed, so a
+   * check-off made a moment ago is included by the time the tap completes.
+   */
+  async refresh() {
+    await this.#prepare();
+  }
+
   async #prepare() {
     const read = await this.#deps.repo.read();
     if (!read.ok) {
