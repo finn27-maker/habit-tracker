@@ -218,7 +218,7 @@ Feature: Change an item's type in Edit
 
   @custom-accessibility
   Scenario: The Type switch in Edit is a labelled radio group
-    Then the Type switch in Edit is a group labelled "Type" whose options are radio buttons at least 44 pixels tall, and the confirmation is an alert dialog
+    Then the Type switch in Edit is a group labelled "Type" whose options are radio buttons at least 44 pixels tall, and the confirmation question is announced as an alert
 
   # --- Memento rule assertions (adapted for TypeScript) ---
 

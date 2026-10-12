@@ -40,9 +40,14 @@ export interface ItemsRepo {
    * Changes name, list and, for weekly goals, the target from the current week onwards.
    * For to-dos, a missing or empty `dueDate` clears the due date.
    */
+  /**
+   * Edits an item. `type` may change it: check-ins, due date and checkmark are all kept, so
+   * switching back brings them back. A first switch to weekly applies `target` from the week
+   * of its earliest check-in, so past weeks count too.
+   */
   update(
     itemId: string,
-    input: { title: string; listId: string; target?: number; dueDate?: string },
+    input: { title: string; listId: string; type?: string; target?: number; dueDate?: string },
   ): Promise<Result<Item>>;
   /** To-dos: checks it off (stamping the time) or reopens it. */
   setTodoDone(itemId: string, done: boolean): Promise<Result<Item>>;
@@ -165,18 +170,22 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
 
     update: (itemId, input) =>
       guard(SAVE_ERROR, () =>
-        db.transaction('rw', db.lists, db.items, db.targetHistory, async () => {
+        db.transaction('rw', db.lists, db.items, db.completions, db.targetHistory, async () => {
           const item = await db.items.get(itemId);
           if (!item || !isActive(item)) return err(ITEM_NOT_FOUND);
 
-          const parsed = validateItemInput({ ...input, type: item.type });
+          const parsed = validateItemInput({ ...input, type: input.type ?? item.type });
           if (!parsed.ok) return parsed;
-          const { title, listId, target, dueDate } = parsed.value;
+          const { title, listId, type, target, dueDate } = parsed.value;
           if (!(await db.lists.get(listId))) return err(LIST_NOT_FOUND);
 
-          const order = listId === item.listId ? item.order : await nextOrder(listId);
+          // Habits and goals come before to-dos, so crossing over joins the end of the list.
+          const regrouped = (type === 'todo') !== (item.type === 'todo');
+          const order = listId === item.listId && !regrouped ? item.order : await nextOrder(listId);
           const record: ItemRecord = {
-            ...without(item, 'dueDate'),
+            // Only a to-do's due date is edited here; a habit keeps the one it had as a to-do.
+            ...(type === 'todo' ? without(item, 'dueDate') : item),
+            type,
             title,
             listId,
             order,
@@ -188,7 +197,12 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
             // Only the current week onwards changes; earlier weeks keep their own target.
             const week = currentWeekStart();
             const points = await db.targetHistory.where('itemId').equals(itemId).toArray();
-            if (targetInForce(points, week) !== target) {
+            if (points.length === 0) {
+              // Never weekly before: past check-ins count against this target too.
+              const first = (await db.completions.where('itemId').equals(itemId).sortBy('dayKey'))[0];
+              const start = first ? weekStartKey(first.dayKey) : week;
+              await db.targetHistory.put({ itemId, effectiveWeekStart: start < week ? start : week, target });
+            } else if (targetInForce(points, week) !== target) {
               await db.targetHistory.put({ itemId, effectiveWeekStart: week, target });
             }
           }

@@ -309,6 +309,107 @@ describe('removeLatestCompletion', () => {
   });
 });
 
+describe('changing type', () => {
+  const asWeekly = (target: number) => ({ title: 'Gym', listId: 'list-1', type: 'weekly', target });
+  const asDaily = { title: 'Gym', listId: 'list-1', type: 'daily' };
+  const asTodo = (dueDate = '') => ({ title: 'Gym', listId: 'list-1', type: 'todo', dueDate });
+
+  async function gym(days: string[]) {
+    const ctx = await setup();
+    await ctx.items.create({ ...asDaily });
+    for (const day of days) await ctx.items.toggleDay('item-1', day);
+    return ctx;
+  }
+
+  it('turns a daily habit into a weekly goal whose target covers its past check-ins', async () => {
+    const { items, db } = await gym(['2026-10-01', '2026-10-02', '2026-10-13']);
+    const changed = await items.update('item-1', asWeekly(3));
+    expect(changed.ok && changed.value.type).toBe('weekly');
+    expect(await db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-1', effectiveWeekStart: '2026-09-27', target: 3 },
+    ]);
+    expect(await db.completions.count()).toBe(3);
+  });
+
+  it('starts the target this week when there are no check-ins', async () => {
+    const { items, db } = await gym([]);
+    await items.update('item-1', asWeekly(5));
+    expect(await db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-1', effectiveWeekStart: '2026-10-11', target: 5 },
+    ]);
+  });
+
+  it('keeps old weeks’ targets when a former weekly goal becomes weekly again', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await db.targetHistory.put({ itemId: 'item-1', effectiveWeekStart: '2026-09-27', target: 4 });
+    await db.targetHistory.delete(['item-1', '2026-10-11']);
+    await items.update('item-1', { ...peloton, type: 'daily' });
+    await items.update('item-1', { ...peloton, type: 'weekly', target: 2 });
+    const points = await db.targetHistory.orderBy('[itemId+effectiveWeekStart]').toArray();
+    expect(points.map((point) => [point.effectiveWeekStart, point.target])).toEqual([
+      ['2026-09-27', 4],
+      ['2026-10-11', 2],
+    ]);
+  });
+
+  it('turns a weekly goal into a daily habit, keeping every log', async () => {
+    const { items, db } = await setup();
+    await items.create(peloton);
+    await items.addCompletion('item-1', '2026-10-12');
+    await items.addCompletion('item-1', '2026-10-12');
+    const changed = await items.update('item-1', { ...peloton, type: 'daily' });
+    expect(changed.ok && changed.value.type).toBe('daily');
+    expect(await db.completions.count()).toBe(2);
+    // Unchecking the day as a daily habit clears it fully.
+    expect(await items.toggleDay('item-1', '2026-10-12')).toEqual({ ok: true, value: false });
+    expect(await db.completions.count()).toBe(0);
+  });
+
+  it('keeps check-ins through a to-do and back, and moves to the end of its new group', async () => {
+    const { items, db } = await gym(['2026-10-12', '2026-10-13']);
+    await items.create({ title: 'Walk', listId: 'list-1', type: 'daily' });
+    await items.create({ title: 'Buy shoes', listId: 'list-1', type: 'todo' });
+
+    const todo = await items.update('item-1', asTodo('2026-10-15'));
+    expect(todo.ok && todo.value).toMatchObject({ type: 'todo', dueDate: '2026-10-15', order: 3 });
+    expect(await db.completions.count()).toBe(2);
+
+    const back = await items.update('item-1', asDaily);
+    expect(back.ok && back.value).toMatchObject({ type: 'daily', dueDate: '2026-10-15', order: 4 });
+    const all = await items.listActive();
+    expect(all.ok && all.value.filter((item) => item.type !== 'todo').map((item) => item.title)).toEqual([
+      'Walk',
+      'Gym',
+    ]);
+  });
+
+  it('keeps a to-do’s checkmark while it is a habit', async () => {
+    const { items } = await setup();
+    await items.create({ title: 'Call mom', listId: 'list-1', type: 'todo' });
+    await items.setTodoDone('item-1', true);
+    await items.update('item-1', { title: 'Call mom', listId: 'list-1', type: 'daily' });
+    const back = await items.update('item-1', { title: 'Call mom', listId: 'list-1', type: 'todo' });
+    expect(back.ok && back.value.completedAt).toBe(NOW);
+  });
+
+  it('refuses bad targets, unknown types and deleted items without changing anything', async () => {
+    const { items, db } = await gym(['2026-10-13']);
+    expect(await items.update('item-1', asWeekly(0))).toEqual({
+      ok: false,
+      error: 'Pick 1 to 14 times a week',
+    });
+    expect(await items.update('item-1', { ...asDaily, type: 'monthly' })).toEqual({
+      ok: false,
+      error: 'Pick daily, weekly or to-do',
+    });
+    await items.archive('item-1');
+    expect(await items.update('item-1', asWeekly(3))).toEqual({ ok: false, error: 'Habit not found' });
+    expect((await db.items.get('item-1'))?.type).toBe('daily');
+    expect(await db.targetHistory.count()).toBe(0);
+  });
+});
+
 describe('update', () => {
   it('renames a habit and moves it to the end of another list', async () => {
     const { items } = await setup();

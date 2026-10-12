@@ -275,13 +275,14 @@ export class Board {
       await this.#finishForm(await itemsRepo.create(values));
       return;
     }
-    const { kind, item } = current.row;
+    const { type } = values;
     await this.#finishForm(
-      await itemsRepo.update(item.id, {
+      await itemsRepo.update(current.row.item.id, {
         title: values.title,
         listId: values.listId,
-        ...(kind === 'weekly' ? { target: values.target } : {}),
-        ...(kind === 'todo' ? { dueDate: values.dueDate } : {}),
+        type,
+        ...(type === 'weekly' ? { target: values.target } : {}),
+        ...(type === 'todo' ? { dueDate: values.dueDate } : {}),
       }),
     );
   }

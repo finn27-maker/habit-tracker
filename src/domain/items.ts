@@ -16,6 +16,17 @@ export const ITEM_KINDS: readonly { type: ItemType; title: string; description: 
 
 export const kindTitle = (type: ItemType) => ITEM_KINDS.find((kind) => kind.type === type)!.title;
 
+/**
+ * The question asked before an item changes to or from a to-do, whose history can't carry
+ * over (it is kept, though). Null when no question is needed: daily <-> weekly keeps it all.
+ */
+export function typeChangeQuestion(title: string, from: ItemType, to: ItemType): string | null {
+  if (from === to || (from !== 'todo' && to !== 'todo')) return null;
+  return to === 'todo'
+    ? `Change “${title}” to a to-do? Its check-ins are kept and come back if you change it back.`
+    : `Change “${title}” to a ${kindTitle(to).toLowerCase()}? Its due date and checkmark are kept and come back if you change it back.`;
+}
+
 export const MAX_ITEM_TITLE = 60;
 export const MIN_TARGET = 1;
 export const MAX_TARGET = 14;

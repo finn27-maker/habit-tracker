@@ -237,6 +237,91 @@ describe('editing from the page', () => {
   });
 });
 
+describe('changing type from the page', () => {
+  const openEdit = async () => fireEvent.click(await screen.findByRole('button', { name: 'Edit' }));
+  const chooseType = (name: string) =>
+    fireEvent.click(within(screen.getByRole('group', { name: 'Type' })).getByRole('radio', { name }));
+  const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+  it('shows the Type switch with the current type selected', async () => {
+    const ctx = setup();
+    await seedHabit(ctx);
+    renderPage(ctx);
+    await openEdit();
+    expect(screen.getByRole('radio', { name: 'Daily habit' })).toBeChecked();
+  });
+
+  it('turns a daily habit into a weekly goal without asking, keeping its check-ins', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Gym', ['2026-10-11', '2026-10-12', '2026-10-13']);
+    renderPage(ctx);
+    await openEdit();
+    await chooseType('Weekly goal');
+    expect(screen.getByLabelText('Times per week')).toHaveValue('3');
+    await save();
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(await screen.findByRole('img', { name: 'Last 6 months: 3 logs' })).toBeInTheDocument();
+    expect(stat('Current streak')).toBe('1 week');
+    expect((await ctx.db.items.get('item-1'))?.type).toBe('weekly');
+  });
+
+  it('asks before turning a habit into a to-do, and Cancel changes nothing', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Fix bike', ['2026-10-12']);
+    renderPage(ctx);
+    await openEdit();
+    await chooseType('To-do');
+    await save();
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Change “Fix bike” to a to-do? Its check-ins are kept and come back if you change it back.',
+    );
+    await fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.getByRole('radio', { name: 'To-do' })).toBeChecked();
+    expect((await ctx.db.items.get('item-1'))?.type).toBe('daily');
+  });
+
+  it('goes back once a habit becomes a to-do, keeping its check-ins', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Fix bike', ['2026-10-12']);
+    location.hash = '#/item/item-1';
+    renderPage(ctx, 'item-1', '#/today');
+    await openEdit();
+    await chooseType('To-do');
+    await save();
+    await fireEvent.click(screen.getByRole('button', { name: 'Change' }));
+
+    await waitFor(() => expect(location.hash).toBe('#/today'));
+    expect((await ctx.db.items.get('item-1'))?.type).toBe('todo');
+    expect(await storedDays(ctx)).toEqual(['2026-10-12']);
+  });
+
+  it('keeps the confirmation open with the error when the change cannot be saved', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, 'Fix bike');
+    renderPage(ctx);
+    await openEdit();
+    await chooseType('To-do');
+    await save();
+    ctx.db.close();
+    await fireEvent.click(screen.getByRole('button', { name: 'Change' }));
+    expect(await screen.findByText(SAVE_ERROR)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Change' })).toBeInTheDocument();
+  });
+
+  it('shows names as plain text in the question', async () => {
+    const ctx = setup();
+    await seedHabit(ctx, '<b>Gym</b>');
+    const { container } = renderPage(ctx);
+    await openEdit();
+    await chooseType('To-do');
+    await save();
+    expect(screen.getByRole('alert')).toHaveTextContent('Change “<b>Gym</b>” to a to-do?');
+    expect(container.ownerDocument.querySelectorAll('b')).toHaveLength(0);
+  });
+});
+
 describe('missing items and safety', () => {
   it.each(['does-not-exist', '<img src=x>'])('says when %j does not exist', async (id) => {
     const ctx = setup();

@@ -6,6 +6,7 @@ import {
   MAX_TARGET,
   MIN_TARGET,
   kindTitle,
+  typeChangeQuestion,
   validateItemInput,
 } from './items';
 
@@ -18,6 +19,21 @@ describe('item kinds', () => {
       ['Weekly goal', 'A number of times each week'],
     ]);
     expect(kindTitle('weekly')).toBe('Weekly goal');
+  });
+});
+
+describe('typeChangeQuestion', () => {
+  it('asks only when crossing to or from a to-do', () => {
+    expect(typeChangeQuestion('Gym', 'daily', 'weekly')).toBeNull();
+    expect(typeChangeQuestion('Gym', 'weekly', 'daily')).toBeNull();
+    expect(typeChangeQuestion('Gym', 'todo', 'todo')).toBeNull();
+    expect(typeChangeQuestion('Fix bike', 'daily', 'todo')).toBe(
+      'Change “Fix bike” to a to-do? Its check-ins are kept and come back if you change it back.',
+    );
+    expect(typeChangeQuestion('Stretch', 'todo', 'weekly')).toBe(
+      'Change “Stretch” to a weekly goal? Its due date and checkmark are kept and come back if you change it back.',
+    );
+    expect(typeChangeQuestion('Stretch', 'todo', 'daily')).toMatch(/^Change “Stretch” to a daily habit\?/);
   });
 });
 

@@ -1,7 +1,14 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { addDaysToKey } from '../domain/dates';
-  import { ITEM_KINDS, MAX_TARGET, MIN_TARGET, kindTitle, type ItemType } from '../domain/items';
+  import {
+    ITEM_KINDS,
+    MAX_TARGET,
+    MIN_TARGET,
+    kindTitle,
+    typeChangeQuestion,
+    type ItemType,
+  } from '../domain/items';
   import type { List } from '../domain/lists';
   import type { FormValues } from './board.svelte';
   import Sheet from './Sheet.svelte';
@@ -21,7 +28,7 @@
     lists: readonly List[];
     /** Local YYYY-MM-DD, for the Today/Tomorrow due choices. */
     today: string;
-    /** When given, the sheet edits this item and its type cannot change. */
+    /** When given, the sheet edits this item (its type too, confirmed to or from a to-do). */
     initial?: FormValues;
     /** The list a new item starts in (defaults to the first list). */
     listId?: string;
@@ -53,6 +60,8 @@
   let date = $state(untrack(() => (due === 'pick' ? initial!.dueDate : addDaysToKey(today, 2))));
   let localError = $state('');
   let confirmingDelete = $state(false);
+  /** Values waiting for the user to confirm a change to or from a to-do. */
+  let pendingType = $state<{ values: FormValues; question: string } | null>(null);
 
   const editing = $derived(initial !== undefined);
   const sheetTitle = $derived.by(() => {
@@ -82,7 +91,10 @@
       return;
     }
     localError = '';
-    onSubmit({ title, listId, type, target, dueDate: chosen });
+    const values = { title, listId, type, target, dueDate: chosen };
+    const question = initial ? typeChangeQuestion(title.trim(), initial.type, type) : null;
+    if (question) pendingType = { values, question };
+    else onSubmit(values);
   }
 </script>
 
@@ -103,6 +115,15 @@
       </button>
       <button type="button" class="danger" onclick={onDelete}>Delete</button>
     </div>
+  {:else if pendingType}
+    <p class="confirm" role="alert">{pendingType.question}</p>
+    {#if error}
+      <p class="error" role="alert">{error}</p>
+    {/if}
+    <div class="buttons">
+      <button type="button" class="secondary" onclick={() => (pendingType = null)}>Cancel</button>
+      <button type="button" onclick={() => onSubmit(pendingType!.values)}>Change</button>
+    </div>
   {:else}
     <form
       onsubmit={(event) => {
@@ -110,20 +131,18 @@
         submit();
       }}
     >
-      {#if !editing}
-        <fieldset class="types" aria-describedby="type-hint">
-          <legend>Type</legend>
-          <div class="segments">
-            {#each ITEM_KINDS as kind (kind.type)}
-              <label class="segment" class:selected={type === kind.type}>
-                <input type="radio" name="item-type" value={kind.type} bind:group={type} />
-                {kind.title}
-              </label>
-            {/each}
-          </div>
-          <p class="hint" id="type-hint">{typeHint}</p>
-        </fieldset>
-      {/if}
+      <fieldset class="types" aria-describedby="type-hint">
+        <legend>Type</legend>
+        <div class="segments">
+          {#each ITEM_KINDS as kind (kind.type)}
+            <label class="segment" class:selected={type === kind.type}>
+              <input type="radio" name="item-type" value={kind.type} bind:group={type} />
+              {kind.title}
+            </label>
+          {/each}
+        </div>
+        <p class="hint" id="type-hint">{typeHint}</p>
+      </fieldset>
       <label for="habit-title">Name</label>
       <input
         id="habit-title"
