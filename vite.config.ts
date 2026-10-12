@@ -58,6 +58,7 @@ export default defineConfig({
       exclude: [
         'src/**/*.test.ts',
         'src/test-setup.ts',
+        'src/testing/**',
         'src/main.ts',
         'src/App.svelte',
         'src/vite-env.d.ts',

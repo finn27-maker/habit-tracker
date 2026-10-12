@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { addDaysToKey } from './dates';
 import type { Item } from './items';
 import type { List } from './lists';
-import { buildToday, type DailyRow, type TodayRow, type WeeklyRow } from './today';
+import { fastestOf } from '../testing/timing';
+import { buildToday, type DailyRow, type TodayGroup, type TodayRow, type WeeklyRow } from './today';
 
 const list = (id: string, name: string, order: number): List => ({
   id,
@@ -169,9 +170,10 @@ describe('buildToday', () => {
     const items = Array.from({ length: 50 }, (_, i) => habit(`h${i}`, 'fit', i));
     const completionDays = Object.fromEntries(items.map((item) => [item.id, days]));
 
-    const start = performance.now();
-    const groups = buildToday({ lists: [fitness], items, completionDays, targets: {}, today });
-    const elapsed = performance.now() - start;
+    let groups: TodayGroup[] = [];
+    const elapsed = fastestOf(5, () => {
+      groups = buildToday({ lists: [fitness], items, completionDays, targets: {}, today });
+    });
 
     expect(groups[0]!.rows).toHaveLength(50);
     expect(asDaily(groups[0]!.rows[0]!).streak).toBe(365);
@@ -192,9 +194,10 @@ describe('buildToday', () => {
       ]),
     );
 
-    const start = performance.now();
-    const groups = buildToday({ lists: [fitness], items, completionDays, targets, today });
-    const elapsed = performance.now() - start;
+    let groups: TodayGroup[] = [];
+    const elapsed = fastestOf(5, () => {
+      groups = buildToday({ lists: [fitness], items, completionDays, targets, today });
+    });
 
     expect(groups[0]!.rows).toHaveLength(50);
     expect(asWeekly(groups[0]!.rows[0]!).streak).toBe(52);

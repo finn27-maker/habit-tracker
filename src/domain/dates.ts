@@ -25,8 +25,11 @@ export function addDaysToKey(key: string, days: number): string {
  * used to compare calendar dates, never to show a time. Cheap enough for hot loops.
  */
 export function dayNumber(key: string): number {
-  const [year, month, day] = key.split('-').map(Number);
-  return Date.UTC(year!, month! - 1, day!) / 86_400_000;
+  // Slices rather than split().map(): this runs thousands of times per screen.
+  return (
+    Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10))) /
+    86_400_000
+  );
 }
 
 /**

@@ -18,15 +18,24 @@ export interface WeeklyStatus {
   streakAtRisk: boolean;
 }
 
-const byWeek = (a: TargetPoint, b: TargetPoint) =>
-  a.effectiveWeekStart.localeCompare(b.effectiveWeekStart);
+/** A target record with its week resolved to a number once, so streak loops stay cheap. */
+interface WeekTarget {
+  week: number;
+  target: number;
+}
 
-/** `sorted` must be ordered by effectiveWeekStart. */
-function targetForWeek(sorted: readonly TargetPoint[], week: number): number | undefined {
+function weekTargets(points: readonly TargetPoint[]): WeekTarget[] {
+  return [...points]
+    .sort((a, b) => a.effectiveWeekStart.localeCompare(b.effectiveWeekStart))
+    .map((point) => ({ week: weekNumber(point.effectiveWeekStart), target: point.target }));
+}
+
+/** `sorted` must be ordered by week. */
+function targetForWeek(sorted: readonly WeekTarget[], week: number): number | undefined {
   let found: number | undefined;
-  for (const point of sorted) {
-    if (weekNumber(point.effectiveWeekStart) > week) break;
-    found = point.target;
+  for (const entry of sorted) {
+    if (entry.week > week) break;
+    found = entry.target;
   }
   return found;
 }
@@ -37,7 +46,7 @@ function targetForWeek(sorted: readonly TargetPoint[], week: number): number | u
  * had, so raising or lowering a target never rewrites history.
  */
 export function targetInForce(points: readonly TargetPoint[], weekStart: string): number | undefined {
-  return targetForWeek([...points].sort(byWeek), weekNumber(weekStart));
+  return targetForWeek(weekTargets(points), weekNumber(weekStart));
 }
 
 /**
@@ -50,7 +59,7 @@ export function weeklyStatus(
   targets: readonly TargetPoint[],
   today: string,
 ): WeeklyStatus {
-  const sorted = [...targets].sort(byWeek);
+  const sorted = weekTargets(targets);
   const todayNumber = dayNumber(today);
   const currentWeek = weekNumber(today);
 
