@@ -5,6 +5,12 @@ import type { Page } from '@playwright/test';
  * finishes, so a test that reloads right after a tap must first wait for this to settle,
  * or the browser can cancel the save mid-write.
  */
+/** Taps + and answers "What are you adding?". */
+export async function startAdding(page: Page, kind: 'Daily habit' | 'Weekly goal' | 'To-do') {
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('button', { name: kind, exact: true }).click();
+}
+
 export const completionCount = (page: Page) => storeCount(page, 'completions');
 
 /** How many stored to-dos are checked off (have a completedAt). Same reason as above. */

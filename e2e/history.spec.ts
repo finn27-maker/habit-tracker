@@ -1,8 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { completionCount } from './helpers';
+import { completionCount, startAdding } from './helpers';
 
 async function addHabit(page: Page, name: string) {
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'Daily habit');
   await page.getByLabel('Name').fill(name);
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();

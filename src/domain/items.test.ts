@@ -1,5 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import { ITEM_TYPES, MAX_ITEM_TITLE, MAX_TARGET, MIN_TARGET, validateItemInput } from './items';
+import {
+  ITEM_KINDS,
+  ITEM_TYPES,
+  MAX_ITEM_TITLE,
+  MAX_TARGET,
+  MIN_TARGET,
+  kindTitle,
+  validateItemInput,
+} from './items';
+
+describe('item kinds', () => {
+  it('names and explains every type, in the order they are offered', () => {
+    expect(ITEM_KINDS.map((kind) => kind.type)).toEqual([...ITEM_TYPES]);
+    expect(ITEM_KINDS.map((kind) => [kind.title, kind.description])).toEqual([
+      ['Daily habit', 'Every day, with a streak'],
+      ['Weekly goal', 'A number of times each week'],
+      ['To-do', 'Once, with an optional due date'],
+    ]);
+    expect(kindTitle('weekly')).toBe('Weekly goal');
+  });
+});
 
 const valid = { title: 'Meditate', listId: 'list-1', type: 'daily' };
 

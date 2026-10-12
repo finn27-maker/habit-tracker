@@ -1,11 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
-import { completionCount } from './helpers';
+import { completionCount, startAdding } from './helpers';
 
-async function addItem(page: Page, name: string, repeats?: string, list = '🏠 Personal') {
-  await page.getByRole('button', { name: 'New habit' }).click();
+async function addItem(
+  page: Page,
+  name: string,
+  kind: 'Daily habit' | 'Weekly goal' | 'To-do' = 'Daily habit',
+  list = '🏠 Personal',
+) {
+  await startAdding(page, kind);
   await page.getByLabel('Name').fill(name);
   await page.getByLabel('List').selectOption({ label: list });
-  if (repeats) await page.getByLabel('Repeats').selectOption({ label: repeats });
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
 }
@@ -40,6 +44,36 @@ test('a deleted habit comes back from Recently deleted with its check-in', async
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute('aria-checked', 'true');
   await page.reload();
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('adding asks what kind first, and a to-do added that way is a to-do', async ({ page }) => {
+  // Measured inside the page: from the tap until the choice is on screen.
+  const ms = await page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        const started = performance.now();
+        document.querySelector<HTMLButtonElement>('button[aria-label="Add"]')!.click();
+        requestAnimationFrame(() =>
+          resolve(document.querySelector('[role="dialog"]') ? performance.now() - started : Infinity),
+        );
+      }),
+  );
+  expect(ms).toBeLessThan(300);
+
+  const dialog = page.getByRole('dialog', { name: 'What are you adding?' });
+  await expect(dialog).toBeVisible();
+  for (const kind of ['Daily habit', 'Weekly goal', 'To-do']) {
+    const box = (await dialog.getByRole('button', { name: kind, exact: true }).boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(43.5);
+  }
+  await expect(dialog.getByLabel('Name')).toHaveCount(0);
+
+  await dialog.getByRole('button', { name: 'To-do', exact: true }).click();
+  await page.getByLabel('Name').fill('Pick up dry cleaning');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Edit Pick up dry cleaning' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit to-do' })).toBeVisible();
+  await expect(page.getByLabel('Due')).toHaveValue('today');
 });
 
 test('500 deleted items show in under a second', async ({ page }) => {
@@ -77,8 +111,8 @@ test('500 deleted items show in under a second', async ({ page }) => {
 });
 
 test('clearing completed to-dos moves them to Recently deleted', async ({ page }) => {
-  await addItem(page, 'Pay rent', 'Once (to-do)');
-  await addItem(page, 'Call mom', 'Once (to-do)');
+  await addItem(page, 'Pay rent', 'To-do');
+  await addItem(page, 'Call mom', 'To-do');
   await page.getByRole('checkbox', { name: 'Pay rent' }).click();
   await expect(page.getByRole('checkbox', { name: 'Pay rent' })).toHaveCount(0, { timeout: 6_000 });
 
@@ -96,8 +130,8 @@ test('clearing completed to-dos moves them to Recently deleted', async ({ page }
 });
 
 test('dragging a goal above a habit on a list page changes Today’s order', async ({ page }) => {
-  await addItem(page, 'Stretch', undefined, '🏋️ Fitness');
-  await addItem(page, 'Peloton ride', 'Times a week', '🏋️ Fitness');
+  await addItem(page, 'Stretch', 'Daily habit', '🏋️ Fitness');
+  await addItem(page, 'Peloton ride', 'Weekly goal', '🏋️ Fitness');
   const fitness = page.getByRole('region', { name: 'Fitness' });
   await expect(fitness.getByRole('link')).toHaveText(['Stretch', 'Peloton ride']);
 

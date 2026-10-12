@@ -1,4 +1,4 @@
-import type { Item, ItemType } from './items';
+import { kindTitle, type Item } from './items';
 import type { List } from './lists';
 
 /** A deleted (archived) habit, goal or to-do; its history is kept. */
@@ -12,12 +12,6 @@ export interface DeletedRow {
   detail: string;
 }
 
-const KIND: Record<ItemType, string> = {
-  daily: 'Daily habit',
-  weekly: 'Weekly goal',
-  todo: 'To-do',
-};
-
 const sameYear = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' });
 const otherYear = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -30,7 +24,7 @@ export function deletedRows(items: readonly ArchivedItem[], lists: readonly List
       const date = new Date(item.archivedAt);
       const when = (date.getFullYear() === Number(today.slice(0, 4)) ? sameYear : otherYear).format(date);
       const listName = names.get(item.listId) ?? 'Deleted list';
-      return { item, detail: `${KIND[item.type]} · ${listName} · Deleted ${when}` };
+      return { item, detail: `${kindTitle(item.type)} · ${listName} · Deleted ${when}` };
     });
 }
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { addDaysToKey } from '../domain/dates';
-  import { MAX_TARGET, MIN_TARGET, type ItemType } from '../domain/items';
+  import { ITEM_KINDS, MAX_TARGET, MIN_TARGET, kindTitle, type ItemType } from '../domain/items';
   import type { List } from '../domain/lists';
   import type { FormValues } from './board.svelte';
   import Sheet from './Sheet.svelte';
@@ -42,7 +42,8 @@
   // The sheet edits its own copy and is created fresh each time it opens.
   let title = $state(untrack(() => initial?.title ?? ''));
   let listId = $state(untrack(() => initial?.listId ?? startListId ?? lists[0]?.id ?? ''));
-  let type = $state<ItemType>(untrack(() => initial?.type ?? 'daily'));
+  // A new item starts with no type: the sheet asks first, so nothing defaults to a daily habit.
+  let type = $state<ItemType | null>(untrack(() => initial?.type ?? null));
   let target = $state(untrack(() => initial?.target ?? 3));
   // New to-dos start due today; an edit keeps whatever date the to-do already has.
   let due = $state<Due>(untrack(() => (initial ? dueChoice(initial.dueDate) : 'today')));
@@ -53,7 +54,7 @@
 
   const editing = $derived(initial !== undefined);
   const sheetTitle = $derived.by(() => {
-    if (!initial) return 'New habit';
+    if (!initial) return type === null ? 'What are you adding?' : `New ${kindTitle(type).toLowerCase()}`;
     if (initial.type === 'weekly') return 'Edit weekly goal';
     return initial.type === 'todo' ? 'Edit to-do' : 'Edit habit';
   });
@@ -73,7 +74,7 @@
       return;
     }
     localError = '';
-    onSubmit({ title, listId, type, target, dueDate: chosen });
+    onSubmit({ title, listId, type: type!, target, dueDate: chosen });
   }
 </script>
 
@@ -94,6 +95,24 @@
       </button>
       <button type="button" class="danger" onclick={onDelete}>Delete</button>
     </div>
+  {:else if type === null}
+    <div class="kinds">
+      {#each ITEM_KINDS as kind (kind.type)}
+        <button
+          type="button"
+          class="kind"
+          aria-label={kind.title}
+          aria-describedby="kind-{kind.type}"
+          onclick={() => (type = kind.type)}
+        >
+          <span class="kind-title">{kind.title}</span>
+          <span class="kind-description" id="kind-{kind.type}">{kind.description}</span>
+        </button>
+      {/each}
+    </div>
+    <div class="buttons">
+      <button type="button" class="secondary" onclick={onCancel}>Cancel</button>
+    </div>
   {:else}
     <form
       onsubmit={(event) => {
@@ -101,6 +120,11 @@
         submit();
       }}
     >
+      {#if !editing}
+        <button type="button" class="back" onclick={() => (type = null)}>
+          <span aria-hidden="true">‹ </span>Back
+        </button>
+      {/if}
       <label for="habit-title">Name</label>
       <input id="habit-title" type="text" bind:value={title} autocomplete="off" />
 
@@ -110,15 +134,6 @@
           <option value={list.id}>{list.emoji} {list.name}</option>
         {/each}
       </select>
-
-      {#if !editing}
-        <label for="habit-type">Repeats</label>
-        <select id="habit-type" bind:value={type}>
-          <option value="daily">Every day</option>
-          <option value="weekly">Times a week</option>
-          <option value="todo">Once (to-do)</option>
-        </select>
-      {/if}
 
       {#if type === 'weekly'}
         <label for="habit-target">Times per week</label>
@@ -160,6 +175,42 @@
 </Sheet>
 
 <style>
+  .kinds {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+  }
+  .kind {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    min-height: 44px;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--separator);
+    border-radius: 12px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+  }
+  .kind-title {
+    font-size: 1.0625rem;
+    font-weight: 700;
+  }
+  .kind-description {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+  .back {
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--accent);
+    font: inherit;
+    font-weight: 600;
+  }
   .confirm {
     margin: 0;
     font-weight: 600;

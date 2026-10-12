@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
+import { startAdding } from './helpers';
 
 async function addHabit(page: Page, name: string, weekly = false) {
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, weekly ? 'Weekly goal' : 'Daily habit');
   await page.getByLabel('Name').fill(name);
-  if (weekly) await page.getByLabel('Repeats').selectOption({ label: 'Times a week' });
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
 }

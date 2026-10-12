@@ -42,7 +42,7 @@
   <button
     type="button"
     class="add"
-    aria-label="New habit"
+    aria-label="Add"
     onclick={() => board.openForm({ kind: 'new' })}
   >
     +

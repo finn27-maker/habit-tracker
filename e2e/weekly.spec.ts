@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { completionCount } from './helpers';
+import { completionCount, startAdding } from './helpers';
 
 test.use({ timezoneId: 'America/Chicago' });
 
@@ -10,10 +10,9 @@ const ring = (page: Page, title: string, count: number, target: number, met = fa
   });
 
 async function addWeekly(page: Page, name: string, target = 3, list?: string) {
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'Weekly goal');
   await page.getByLabel('Name').fill(name);
   if (list) await page.getByLabel('List').selectOption({ label: list });
-  await page.getByLabel('Repeats').selectOption({ label: 'Times a week' });
   await page.getByLabel('Times per week').selectOption(String(target));
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
@@ -48,7 +47,7 @@ test('a weekly goal sits beside daily habits under its list', async ({ page }) =
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
 
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'Daily habit');
   await page.getByLabel('Name').fill('Stretch');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
@@ -85,8 +84,7 @@ test('Edit on the goal’s page changes the target, and it survives a reload', a
 test('the target must be chosen from 1 to 14 and a name is required', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
-  await page.getByRole('button', { name: 'New habit' }).click();
-  await page.getByLabel('Repeats').selectOption({ label: 'Times a week' });
+  await startAdding(page, 'Weekly goal');
 
   await expect(page.getByLabel('Times per week')).toHaveValue('3');
   await expect(page.getByLabel('Times per week').locator('option')).toHaveCount(14);

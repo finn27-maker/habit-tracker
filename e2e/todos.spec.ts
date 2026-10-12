@@ -1,11 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { completedTodoCount } from './helpers';
+import { completedTodoCount, startAdding } from './helpers';
 
 async function addTodo(page: Page, name: string, list: string, due = 'No date') {
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'To-do');
   await page.getByLabel('Name').fill(name);
   await page.getByLabel('List').selectOption({ label: list });
-  await page.getByLabel('Repeats').selectOption({ label: 'Once (to-do)' });
   await page.getByLabel('Due').selectOption({ label: due });
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
@@ -71,8 +70,7 @@ test('a to-do due tomorrow waits on its list page', async ({ page }) => {
 });
 
 test('"Pick a date" opens a date field already set two days ahead', async ({ page }) => {
-  await page.getByRole('button', { name: 'New habit' }).click();
-  await page.getByLabel('Repeats').selectOption({ label: 'Once (to-do)' });
+  await startAdding(page, 'To-do');
   await page.getByLabel('Due').selectOption({ label: 'Pick a date' });
   await expect(page.getByLabel('Date')).toHaveValue(localDay(2));
 });
@@ -81,7 +79,7 @@ test('a list page starts new items in that list', async ({ page }) => {
   await page.getByRole('link', { name: 'Lists' }).click();
   await page.getByRole('link', { name: 'Work' }).click();
   await expect(page.getByText('Nothing in this list yet. Tap + to add something.')).toBeVisible();
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'To-do');
   await expect(page.getByLabel('List').locator('option:checked')).toHaveText('💼 Work');
 });
 

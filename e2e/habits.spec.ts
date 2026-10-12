@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test';
-import { completionCount } from './helpers';
+import { completionCount, startAdding } from './helpers';
 
 test.use({ timezoneId: 'America/Chicago' });
 
 async function addHabit(page: Page, name: string, list?: string) {
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'Daily habit');
   await page.getByLabel('Name').fill(name);
   if (list) await page.getByLabel('List').selectOption({ label: list });
   await page.getByRole('button', { name: 'Save' }).click();
@@ -69,12 +69,12 @@ test('habits are grouped under their list headers in list order', async ({ page 
 test('the new-habit sheet starts on the first list and rejects a blank name', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'Daily habit');
 
   await expect(page.getByLabel('List').locator('option:checked')).toContainText('Fitness');
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('alert')).toHaveText("Name can't be empty");
-  await expect(page.getByRole('dialog', { name: 'New habit' })).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'New daily habit' })).toBeVisible();
 });
 
 test('a habit name with HTML is shown as plain text', async ({ page }) => {
@@ -92,7 +92,7 @@ test('checkboxes and the add button are at least 44 by 44 pixels', async ({ page
   await addHabit(page, 'Meditate');
   for (const target of [
     page.getByRole('checkbox', { name: 'Meditate' }),
-    page.getByRole('button', { name: 'New habit' }),
+    page.getByRole('button', { name: 'Add', exact: true }),
   ]) {
     const box = await target.boundingBox();
     expect(box?.width).toBeGreaterThanOrEqual(43.5);

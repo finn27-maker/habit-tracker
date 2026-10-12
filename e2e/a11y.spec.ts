@@ -1,12 +1,16 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
-import { completionCount } from './helpers';
+import { completionCount, startAdding } from './helpers';
 
-async function addItem(page: Page, name: string, repeats?: string, list?: string) {
-  await page.getByRole('button', { name: 'New habit' }).click();
+async function addItem(
+  page: Page,
+  name: string,
+  kind: 'Daily habit' | 'Weekly goal' | 'To-do' = 'Daily habit',
+  list?: string,
+) {
+  await startAdding(page, kind);
   await page.getByLabel('Name').fill(name);
   if (list) await page.getByLabel('List').selectOption({ label: list });
-  if (repeats) await page.getByLabel('Repeats').selectOption({ label: repeats });
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
 }
@@ -15,11 +19,11 @@ async function addItem(page: Page, name: string, repeats?: string, list?: string
 async function seed(page: Page) {
   await page.goto('./');
   await expect(page.getByText('Nothing here yet.')).toBeVisible();
-  await addItem(page, 'Meditate', undefined, '🏠 Personal');
-  await addItem(page, 'Peloton ride', 'Times a week', '🏠 Personal');
-  await addItem(page, 'Call mom', 'Once (to-do)', '🏠 Personal');
-  await addItem(page, 'Pay rent', 'Once (to-do)', '🏠 Personal');
-  await addItem(page, 'Old habit', undefined, '🏠 Personal');
+  await addItem(page, 'Meditate', 'Daily habit', '🏠 Personal');
+  await addItem(page, 'Peloton ride', 'Weekly goal', '🏠 Personal');
+  await addItem(page, 'Call mom', 'To-do', '🏠 Personal');
+  await addItem(page, 'Pay rent', 'To-do', '🏠 Personal');
+  await addItem(page, 'Old habit', 'Daily habit', '🏠 Personal');
   await page.getByRole('checkbox', { name: 'Meditate' }).click();
   await expect.poll(() => completionCount(page)).toBe(1);
   await page.getByRole('checkbox', { name: 'Pay rent' }).click();
@@ -50,9 +54,12 @@ async function everyScreen(page: Page, check: (screen: string) => Promise<void>)
   await expect(page.getByRole('checkbox', { name: 'Meditate' })).toBeVisible();
   await check('Today');
 
-  await page.getByRole('button', { name: 'New habit' }).click();
-  await expect(page.getByRole('dialog', { name: 'New habit' })).toBeVisible();
-  await check('New habit sheet');
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'What are you adding?' })).toBeVisible();
+  await check('What are you adding? choice');
+  await page.getByRole('button', { name: 'To-do', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'New to-do' })).toBeVisible();
+  await check('New to-do sheet');
   await page.getByRole('button', { name: 'Cancel' }).click();
 
   await page.getByRole('link', { name: 'Meditate details' }).click();

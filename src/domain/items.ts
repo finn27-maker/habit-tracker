@@ -4,6 +4,15 @@ import { err, ok, type Result } from './result';
 export const ITEM_TYPES = ['daily', 'weekly', 'todo'] as const;
 export type ItemType = (typeof ITEM_TYPES)[number];
 
+/** How each kind of item is named and explained to the user, in the order they are offered. */
+export const ITEM_KINDS: readonly { type: ItemType; title: string; description: string }[] = [
+  { type: 'daily', title: 'Daily habit', description: 'Every day, with a streak' },
+  { type: 'weekly', title: 'Weekly goal', description: 'A number of times each week' },
+  { type: 'todo', title: 'To-do', description: 'Once, with an optional due date' },
+];
+
+export const kindTitle = (type: ItemType) => ITEM_KINDS.find((kind) => kind.type === type)!.title;
+
 export const MAX_ITEM_TITLE = 60;
 export const MIN_TARGET = 1;
 export const MAX_TARGET = 14;

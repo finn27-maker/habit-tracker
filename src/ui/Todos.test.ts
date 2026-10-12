@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { describe, expect, it } from 'vitest';
 import { SAVE_ERROR } from '../data/errors';
+import { kindTitle, type ItemType } from '../domain/items';
 import { setupApp, type AppCtx } from '../testing/app-fixture';
 import ListPage from './ListPage.svelte';
 import Today from './Today.svelte';
@@ -53,27 +54,22 @@ const checkboxNames = (container: HTMLElement) =>
     .getAllByRole('checkbox')
     .map((box) => box.getAttribute('aria-label'));
 
-async function openNewSheet(name: string, type = 'todo') {
-  await fireEvent.click(await screen.findByRole('button', { name: 'New habit' }));
+async function openNewSheet(name: string, type: ItemType = 'todo') {
+  await fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+  await fireEvent.click(screen.getByRole('button', { name: kindTitle(type) }));
   await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });
-  await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: type } });
 }
 
 const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
 describe('adding to-dos', () => {
-  it('offers Once (to-do), which swaps the weekly target for a Due choice', async () => {
+  it('shows a Due choice, not a weekly target, once To-do is chosen', async () => {
     const ctx = setup();
     await renderEmptyToday(ctx);
-    await fireEvent.click(await screen.findByRole('button', { name: 'New habit' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'To-do' }));
 
-    expect(optionTexts(screen.getByLabelText('Repeats'))).toEqual([
-      'Every day',
-      'Times a week',
-      'Once (to-do)',
-    ]);
-    await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: 'todo' } });
-
+    expect(screen.getByRole('dialog', { name: 'New to-do' })).toBeInTheDocument();
     const due = screen.getByLabelText('Due');
     expect(due).toHaveDisplayValue('Today');
     expect(optionTexts(due)).toEqual(['No date', 'Today', 'Tomorrow', 'Pick a date']);
@@ -142,6 +138,7 @@ describe('adding to-dos', () => {
     await openNewSheet('Call mom');
     await fireEvent.change(screen.getByLabelText('Due'), { target: { value: 'tomorrow' } });
     await save();
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
     await openNewSheet('Book flights');
     await fireEvent.change(screen.getByLabelText('Due'), { target: { value: 'pick' } });
     await fireEvent.input(screen.getByLabelText('Date'), { target: { value: '2026-10-20' } });
@@ -477,14 +474,15 @@ describe('list page', () => {
     renderList(ctx, 'does-not-exist');
     expect(await screen.findByText('List not found')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Lists' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'New habit' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
   });
 
   it('starts new items in this list', async () => {
     const ctx = setup();
     await ctx.listsRepo.ensureStarterLists();
     renderList(ctx, 'list-2');
-    await fireEvent.click(await screen.findByRole('button', { name: 'New habit' }));
+    await fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'To-do' }));
     expect(screen.getByLabelText('List')).toHaveDisplayValue('💼 Work');
   });
 

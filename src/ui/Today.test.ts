@@ -44,8 +44,15 @@ async function seedHabit(ctx: Ctx, title: string, listId = 'list-1') {
 const checkbox = (name: string) => screen.findByRole('checkbox', { name });
 const completions = (ctx: Ctx) => ctx.db.completions.toArray();
 
+/** Taps + and chooses a kind (unless the sheet is already open on a form). */
+async function startAdding(kind = 'Daily habit') {
+  await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+  const choice = screen.queryByRole('button', { name: kind });
+  if (choice) await fireEvent.click(choice);
+}
+
 async function addHabit(name: string, listId?: string) {
-  await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+  await startAdding();
   await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });
   if (listId) await fireEvent.change(screen.getByLabelText('List'), { target: { value: listId } });
   await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -58,7 +65,67 @@ describe('Today screen', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Today' })).toBeInTheDocument();
     expect(screen.getByText('Wednesday, October 14')).toBeInTheDocument();
     expect(await screen.findByText(EMPTY)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'New habit' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
+  });
+
+  it('asks what is being added before showing any fields', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
+
+    const dialog = screen.getByRole('dialog', { name: 'What are you adding?' });
+    expect(within(dialog).getByRole('button', { name: 'Daily habit' })).toHaveAccessibleDescription(
+      'Every day, with a streak',
+    );
+    expect(within(dialog).getByRole('button', { name: 'Weekly goal' })).toHaveAccessibleDescription(
+      'A number of times each week',
+    );
+    expect(within(dialog).getByRole('button', { name: 'To-do' })).toHaveAccessibleDescription(
+      'Once, with an optional due date',
+    );
+    expect(within(dialog).queryByLabelText('Name')).toBeNull();
+    expect(within(dialog).queryByLabelText('Repeats')).toBeNull();
+
+    await fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(await ctx.db.items.count()).toBe(0);
+  });
+
+  it('goes back to the choice without saving', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+    await startAdding('Weekly goal');
+    await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Peloton ride' } });
+
+    await fireEvent.click(screen.getByRole('button', { name: 'Back' }));
+
+    expect(screen.getByRole('dialog', { name: 'What are you adding?' })).toBeInTheDocument();
+    expect(await ctx.db.items.count()).toBe(0);
+  });
+
+  it('saves each choice as its own type', async () => {
+    const ctx = setup();
+    renderToday(ctx);
+    await screen.findByText(EMPTY);
+    for (const [kind, name] of [
+      ['Daily habit', 'A'],
+      ['Weekly goal', 'B'],
+      ['To-do', 'C'],
+    ] as const) {
+      await startAdding(kind);
+      expect(screen.getByRole('dialog', { name: `New ${kind.toLowerCase()}` })).toBeInTheDocument();
+      await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });
+      await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    }
+    const stored = (await ctx.db.items.toArray()).sort((a, b) => a.title.localeCompare(b.title));
+    expect(stored.map((item) => item.type)).toEqual(['daily', 'weekly', 'todo']);
+    expect(await ctx.db.targetHistory.toArray()).toEqual([
+      { itemId: 'item-2', effectiveWeekStart: '2026-10-11', target: 3 },
+    ]);
   });
 
   it('adds a habit under its list with no streak badge yet', async () => {
@@ -66,9 +133,10 @@ describe('Today screen', () => {
     renderToday(ctx);
     await screen.findByText(EMPTY);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
-    const dialog = screen.getByRole('dialog', { name: 'New habit' });
-    expect(within(dialog).getByLabelText('Repeats')).toHaveValue('daily');
+    await startAdding('Daily habit');
+    const dialog = screen.getByRole('dialog', { name: 'New daily habit' });
+    expect(within(dialog).queryByLabelText('Times per week')).toBeNull();
+    expect(within(dialog).queryByLabelText('Due')).toBeNull();
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: 'Meditate' } });
     await fireEvent.change(screen.getByLabelText('List'), { target: { value: 'list-4' } });
     await fireEvent.click(screen.getByRole('button', { name: 'Save' }));
@@ -86,7 +154,7 @@ describe('Today screen', () => {
     renderToday(ctx);
     await screen.findByText(EMPTY);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    await startAdding();
     const select = screen.getByLabelText('List');
     expect(select).toHaveValue('list-1');
     expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(
@@ -120,7 +188,7 @@ describe('Today screen', () => {
     renderToday(ctx);
     await screen.findByText(EMPTY);
 
-    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
     expect(
       screen.getByText('Create a list in the Lists tab first, then come back to add a habit.'),
     ).toBeInTheDocument();
@@ -556,7 +624,7 @@ describe('editing and deleting', () => {
     const ctx = setup();
     renderToday(ctx);
     await screen.findByText(EMPTY);
-    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    await startAdding();
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
   });
 });
@@ -586,21 +654,18 @@ describe('weekly goals on Today', () => {
   }
 
   async function openNewWeekly(name: string) {
-    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    await startAdding('Weekly goal');
     await fireEvent.input(screen.getByLabelText('Name'), { target: { value: name } });
-    await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: 'weekly' } });
   }
 
-  it('offers a Repeats choice that reveals the times-per-week target', async () => {
+  it('asks for times per week when Weekly goal is chosen', async () => {
     const ctx = setup();
     renderToday(ctx);
     await screen.findByText(EMPTY);
-    await fireEvent.click(screen.getByRole('button', { name: 'New habit' }));
+    await startAdding('Weekly goal');
 
-    expect(screen.getByLabelText('Repeats')).toHaveValue('daily');
-    expect(screen.queryByLabelText('Times per week')).toBeNull();
-
-    await fireEvent.change(screen.getByLabelText('Repeats'), { target: { value: 'weekly' } });
+    expect(screen.getByRole('dialog', { name: 'New weekly goal' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Due')).toBeNull();
     const target = screen.getByLabelText('Times per week');
     expect(target).toHaveValue('3');
     expect(within(target).getAllByRole('option').map((o) => o.textContent)).toEqual(

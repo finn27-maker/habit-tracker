@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { storedListNames } from './helpers';
+import { startAdding, storedListNames } from './helpers';
 
 /** Presses a list's reorder handle and drags it `rows` rows (negative = up), then lets go. */
 async function dragRows(page: Page, name: string, rows: number) {
@@ -82,13 +82,13 @@ test('dragging a list to the top reorders Today too, and the handle never scroll
   page,
 }) => {
   await page.goto('./');
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await startAdding(page, 'Daily habit');
   await page.getByLabel('Name').fill('Stretch');
   await page.getByRole('button', { name: 'Save' }).click();
-  await page.getByRole('button', { name: 'New habit' }).click();
+  await expect(page.getByRole('dialog')).toBeHidden();
+  await startAdding(page, 'To-do');
   await page.getByLabel('Name').fill('Call mom');
   await page.getByLabel('List').selectOption({ label: '🏠 Personal' });
-  await page.getByLabel('Repeats').selectOption({ label: 'Once (to-do)' });
   await page.getByRole('button', { name: 'Save' }).click();
   const groups = page.locator('h2 .name');
   await expect(groups).toHaveText(['Fitness', 'Personal']);
