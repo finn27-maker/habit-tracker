@@ -105,7 +105,8 @@ Feature: Permanently delete from Recently deleted
   Scenario: Emptying 500 deleted items stays quick
     Given 500 deleted items with 20,000 check-ins between them
     When I empty Recently deleted
-    Then the page reads "Nothing deleted." with the time recorded as a test annotation and a pathological ceiling of 5 seconds
+    Then the page reads "Nothing deleted." with the time recorded as a test annotation and a pathological ceiling of 15 seconds
+    # Revised from 5 s: GitHub's Linux WebKit took ~7.4 s (Actions run 38322231694), like the S7 restore.
 
   @integration
   Scenario: A backup made after emptying holds none of the removed items

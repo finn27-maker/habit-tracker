@@ -107,7 +107,7 @@ Feature: History tab
   Scenario: Three years of history across 30 habits opens without a visible wait
     Given 30 habits and goals with 20,000 check-ins between them
     When I open the History tab
-    Then every row is visible with the time recorded as a test annotation and a pathological ceiling of 5 seconds
+    Then every row is visible with the time recorded as a test annotation and a pathological ceiling of 15 seconds
 
   # --- Integration ---
 

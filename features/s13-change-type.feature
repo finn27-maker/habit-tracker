@@ -199,7 +199,7 @@ Feature: Change an item's type in Edit
   Scenario: Changing a habit with three years of check-ins stays quick
     Given the daily habit "Read" has 1,100 check-ins
     When I change it to a weekly goal with 5 per week
-    Then the sheet closes with the time recorded as a test annotation and a pathological ceiling of 5 seconds
+    Then the sheet closes with the time recorded as a test annotation and a pathological ceiling of 15 seconds
     And storage still holds 1,100 check-ins
 
   # --- Integration ---
