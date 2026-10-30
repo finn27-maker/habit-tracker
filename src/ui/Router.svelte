@@ -3,6 +3,7 @@
   import type { AssistantRepo } from '../data/assistant-repo';
   import type { BackupRepo } from '../data/backup-repo';
   import type { SyncResult } from '../platform/assistant-sync';
+  import AssistantNotice from './AssistantNotice.svelte';
   import AssistantSheet from './AssistantSheet.svelte';
   import VersionLine from './VersionLine.svelte';
   import type { ItemsRepo } from '../data/items-repo';
@@ -102,6 +103,7 @@
     {/key}
   {:else}
     <InstallBanner hint={installHint} />
+    <AssistantNotice repo={assistantRepo} />
     <BackupBanner {backup} />
     <Today {listsRepo} {itemsRepo} {clock} />
   {/if}

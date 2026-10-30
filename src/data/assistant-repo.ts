@@ -11,6 +11,8 @@ export const ASSISTANT_LOAD_ERROR = "Couldn't read the assistant settings. Close
 const CODE = 'assistantCode';
 const CONNECTED = 'assistantConnected';
 const LAST_SYNC = 'assistantLastSync';
+/** Ids of items the assistant added since the owner last tapped OK on the Today card. */
+const UNSEEN = 'assistantUnseen';
 
 const ASSISTANT_LIST = { name: FALLBACK_LIST, emoji: '📥', color: 'blue' } as const;
 
@@ -38,6 +40,10 @@ export interface AssistantRepo {
   markSynced(at: number): Promise<void>;
   /** Adds each to-do once, in one transaction: all of them or none. */
   save(todos: IncomingTodo[]): Promise<Result<SaveOutcome>>;
+  /** Arrivals not yet dismissed that still exist, in the order they came, with current titles. */
+  unseen(): Promise<Result<{ id: string; title: string }[]>>;
+  /** OK on the Today card. */
+  dismissUnseen(): Promise<Result<void>>;
 }
 
 export interface AssistantRepoDeps {
@@ -50,6 +56,11 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
   const readCode = async () => {
     const row = await db.meta.get(CODE);
     return typeof row?.value === 'string' ? row.value : null;
+  };
+
+  const readUnseen = async (): Promise<string[]> => {
+    const value = (await db.meta.get(UNSEEN))?.value;
+    return Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : [];
   };
 
   /** Best effort: a status flag that fails to save is retried by the next sync. */
@@ -97,7 +108,7 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
 
     unpair: () =>
       guard(SAVE_ERROR, async () => {
-        await db.meta.bulkDelete([CODE, CONNECTED, LAST_SYNC]);
+        await db.meta.bulkDelete([CODE, CONNECTED, LAST_SYNC, UNSEEN]);
         return ok(undefined);
       }),
 
@@ -120,8 +131,9 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
 
     save: (todos) =>
       guard(SAVE_ERROR, () =>
-        db.transaction('rw', db.lists, db.items, async () => {
+        db.transaction('rw', db.lists, db.items, db.meta, async () => {
           const ids: string[] = [];
+          const arrived: string[] = [];
           let added = 0;
           for (const todo of todos) {
             ids.push(todo.id);
@@ -138,10 +150,31 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
               ...(todo.note ? { note: todo.note } : {}),
             };
             await db.items.add(record);
+            arrived.push(record.id);
             added++;
+          }
+          // In the same transaction, so the Today card never names a to-do that wasn't saved.
+          if (arrived.length > 0) {
+            await db.meta.put({ key: UNSEEN, value: [...(await readUnseen()), ...arrived] });
           }
           return ok({ ids, added });
         }),
       ),
+
+    unseen: () =>
+      guard(ASSISTANT_LOAD_ERROR, async () => {
+        const items = await db.items.bulkGet(await readUnseen());
+        return ok(
+          items
+            .filter((item) => item !== undefined && item.archivedAt === undefined)
+            .map((item) => ({ id: item!.id, title: item!.title })),
+        );
+      }),
+
+    dismissUnseen: () =>
+      guard(SAVE_ERROR, async () => {
+        await db.meta.delete(UNSEEN);
+        return ok(undefined);
+      }),
   };
 }

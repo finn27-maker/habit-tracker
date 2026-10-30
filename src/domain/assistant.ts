@@ -70,6 +70,23 @@ export function parseTodos(body: unknown): IncomingTodo[] {
   return body.todos.map(readTodo).filter((todo): todo is IncomingTodo => todo !== null);
 }
 
+/**
+ * The Today card for to-dos the assistant delivered since the last OK, naming up to three:
+ * "2 new to-dos from your assistant: Pay the plumber and Book dentist".
+ */
+export function arrivalsMessage(titles: readonly string[]): string {
+  const count = titles.length;
+  const shown = titles.slice(0, 3);
+  const more = count - shown.length;
+  const names =
+    more > 0
+      ? `${shown.join(', ')} and ${more} more`
+      : shown.length === 1
+        ? shown[0]!
+        : `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)!}`;
+  return `${count} new ${count === 1 ? 'to-do' : 'to-dos'} from your assistant: ${names}`;
+}
+
 /** The list whose name matches, ignoring case and surrounding spaces. */
 export function matchList<T extends { name: string }>(lists: readonly T[], name: string): T | undefined {
   const wanted = name.trim().toLowerCase();

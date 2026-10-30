@@ -106,6 +106,63 @@ test('pairing pulls the to-do into the matching list and sends nothing of mine',
   await page.goto('./#/lists');
   await page.getByRole('link', { name: /Work/ }).first().click();
   await expect(page.getByText('Pay Xcel bill')).toHaveCount(1);
+
+  // Today names what arrived until OK (s17).
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click();
+  const notice = page.getByRole('region', { name: 'New from your assistant' });
+  await expect(notice).toHaveText(/1 new to-do from your assistant: Pay Xcel bill/);
+  const ok = notice.getByRole('button', { name: 'OK' });
+  expect((await ok.boundingBox())!.height).toBeGreaterThanOrEqual(43.5);
+  await ok.click();
+  await expect(notice).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+  await expect(notice).toHaveCount(0);
+});
+
+test('a delivery of 50 to-dos is announced on Today without a visible wait', async ({ page }, testInfo) => {
+  await page.route(`${ASSISTANT}/**`, async (route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    if (request.url().endsWith('/api/habit-tracker/ack')) {
+      return route.fulfill({ status: 200, headers: CORS, json: { acknowledged: 50 } });
+    }
+    const todos = Array.from({ length: 50 }, (_, i) => ({ id: `bulk${i}`, title: `Task ${i}`, list: '', due: null }));
+    return route.fulfill({ status: 200, headers: CORS, json: { version: 1, todos } });
+  });
+  // Already paired: the code and status live in meta, as the Assistant sheet would leave them.
+  await page.goto('./');
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+  await page.evaluate(
+    (code) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('habit-tracker');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('meta', 'readwrite');
+          tx.objectStore('meta').put({ key: 'assistantCode', value: code });
+          tx.objectStore('meta').put({ key: 'assistantConnected', value: true });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    CODE,
+  );
+
+  const started = Date.now();
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'New from your assistant' })).toHaveText(
+    /50 new to-dos from your assistant: Task 0, Task 1, Task 2 and 47 more/,
+    { timeout: 20_000 },
+  );
+  const ms = Date.now() - started;
+  testInfo.annotations.push({ type: 'arrivals-50-ms', description: String(ms) });
+  // Pathological ceiling only: CI's Linux WebKit runs storage ~3x slower than a Mac.
+  expect(ms).toBeLessThan(15_000);
 });
 
 test('the security policy allows only the assistant as an outside connection', async ({ page }) => {
