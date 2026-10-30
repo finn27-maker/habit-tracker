@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { writable } from 'svelte/store';
   import { registerSW } from 'virtual:pwa-register';
+  import { createAssistantRepo } from './data/assistant-repo';
   import { createBackupRepo } from './data/backup-repo';
   import { createDb } from './data/db';
   import { createItemsRepo } from './data/items-repo';
   import { createListsRepo } from './data/lists-repo';
+  import { createAssistantSync, type SyncResult } from './platform/assistant-sync';
   import { createClock } from './platform/clock';
   import { deviceKind, isStandalone, type InstallPrompt } from './platform/install';
   import { whenOnline } from './platform/online';
@@ -69,6 +72,21 @@
     },
   };
 
+  /** Every signal that the app came back to the foreground. */
+  function onResume(fn: () => void) {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') fn();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('pageshow', fn);
+    window.addEventListener('focus', fn);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('pageshow', fn);
+      window.removeEventListener('focus', fn);
+    };
+  }
+
   // iOS may suspend the app across midnight with no reliable resume event, so "today"
   // is rechecked on every signal we can get plus a 30-second safety interval.
   const clock = createClock({
@@ -77,24 +95,45 @@
     clearTimeout: (id) => window.clearTimeout(id as number),
     setInterval: (fn, ms) => window.setInterval(fn, ms),
     clearInterval: (id) => window.clearInterval(id as number),
-    onResume: (fn) => {
-      const onVisible = () => {
-        if (document.visibilityState === 'visible') fn();
-      };
-      document.addEventListener('visibilitychange', onVisible);
-      window.addEventListener('pageshow', fn);
-      window.addEventListener('focus', fn);
-      return () => {
-        document.removeEventListener('visibilitychange', onVisible);
-        window.removeEventListener('pageshow', fn);
-        window.removeEventListener('focus', fn);
-      };
-    },
+    onResume,
+  });
+
+  // To-dos from the owner's assistant. An unpaired install (every family copy) returns before
+  // any request (decision 7ac92147). Runs after Today is on screen and on each return to the app.
+  const assistantRepo = createAssistantRepo(db);
+  const assistantSync = createAssistantSync({
+    repo: assistantRepo,
+    fetch: (url, init) => window.fetch(url, init),
+    isOnline: () => navigator.onLine,
+    now: Date.now,
+  });
+  let revision = $state(0);
+
+  async function runSync(force = false): Promise<SyncResult> {
+    const result = await assistantSync.sync({ force });
+    if (typeof result === 'object' && result.received > 0) revision++;
+    return result;
+  }
+
+  onMount(() => {
+    void runSync();
+    return onResume(() => void runSync());
   });
 
 </script>
 
-<Router {listsRepo} {itemsRepo} {backupRepo} {share} {clock} {installHint} {appUrl} />
+<Router
+  {listsRepo}
+  {itemsRepo}
+  {backupRepo}
+  {share}
+  {clock}
+  {installHint}
+  {appUrl}
+  {assistantRepo}
+  {runSync}
+  {revision}
+/>
 
 <UpdateToast
   needRefresh={$needRefresh}

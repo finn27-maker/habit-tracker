@@ -1,8 +1,10 @@
 import 'fake-indexeddb/auto';
+import { createAssistantRepo } from '../data/assistant-repo';
 import { createBackupRepo } from '../data/backup-repo';
 import { createDb } from '../data/db';
 import { createItemsRepo } from '../data/items-repo';
 import { createListsRepo } from '../data/lists-repo';
+import type { SyncResult } from '../platform/assistant-sync';
 import type { Clock } from '../platform/clock';
 import type { InstallPrompt } from '../platform/install';
 import type { ShareEnv } from '../platform/share';
@@ -63,10 +65,22 @@ export function setupApp(start = new Date(2026, 9, 14, 9, 0), name = 'ui') {
     },
   } satisfies ShareEnv;
 
+  let a = 0;
+  // Never paired unless a test pairs it; the sync is a stand-in that records its calls.
+  const assistantRepo = createAssistantRepo(db, { newId: () => `assistant-${++a}` });
+  const syncCalls: boolean[] = [];
+  const runSync = async (force = false): Promise<SyncResult> => {
+    syncCalls.push(force);
+    return 'unpaired';
+  };
+
   return {
     db,
     listsRepo,
     itemsRepo,
+    assistantRepo,
+    runSync,
+    syncCalls,
     backupRepo: createBackupRepo(db),
     share,
     shared,
@@ -100,6 +114,8 @@ export const routerProps = (ctx: AppCtx) => ({
   clock: ctx.clock,
   installHint: ctx.installHint,
   appUrl: APP_URL,
+  assistantRepo: ctx.assistantRepo,
+  runSync: ctx.runSync,
 });
 
 export const APP_URL = 'https://finn27-maker.github.io/habit-tracker/';

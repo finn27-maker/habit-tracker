@@ -191,6 +191,13 @@ describe('when the assistant refuses or fails', () => {
     expect(JSON.parse(calls[3]!.init.body as string)).toEqual({ ids: ['t1'] });
   });
 
+  it('makes no request when the pairing status cannot be read', async () => {
+    const { repo, sync, calls } = await setup();
+    vi.spyOn(repo, 'status').mockResolvedValue(err('lost'));
+    expect(await sync.sync()).toBe('failed');
+    expect(calls).toEqual([]);
+  });
+
   it('gives up on a request that takes too long', async () => {
     const { sync } = await setup({ replies: ['hang'], timeoutMs: 20 });
     expect(await sync.sync()).toBe('failed');

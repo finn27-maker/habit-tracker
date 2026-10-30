@@ -76,6 +76,18 @@ describe('the version line', () => {
     expect(onHold).toHaveBeenCalledTimes(1);
   });
 
+  it('calls the latest handler after the screen re-renders', async () => {
+    vi.useFakeTimers();
+    const first = vi.fn();
+    const second = vi.fn();
+    const view = render(VersionLine, { props: { onHold: first } });
+    await view.rerender({ onHold: second });
+    await fireEvent.pointerDown(screen.getByText('Version 0.1.0'));
+    vi.advanceTimersByTime(3_000);
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the long-press text menu from appearing', async () => {
     const { line } = setup();
     const event = new Event('contextmenu', { cancelable: true });

@@ -34,7 +34,18 @@ async function holdVersionLine(page: Page) {
   const line = page.getByText(/^Version \d+\.\d+\.\d+$/);
   await line.scrollIntoViewIfNeeded();
   const box = (await line.boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  // The line must not sit under the tab bar. Chromium may show "Ready to work offline" over
+  // it once the service worker installs; a person taps OK first, and so does the test.
+  const ok = page.getByRole('button', { name: 'OK', exact: true });
+  await expect
+    .poll(async () => {
+      if (await ok.isVisible()) await ok.click();
+      return page.evaluate(([px, py]) => document.elementFromPoint(px!, py!)?.textContent ?? '', [x, y]);
+    })
+    .toMatch(/^Version /);
+  await page.mouse.move(x, y);
   await page.mouse.down();
   await page.waitForTimeout(3_200);
   await page.mouse.up();

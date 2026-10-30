@@ -35,6 +35,7 @@ export interface BackupItem {
   archivedAt?: number;
   dueDate?: string;
   completedAt?: number;
+  assistantId?: string;
 }
 
 export interface BackupCompletion {
@@ -136,6 +137,7 @@ function readData(raw: unknown): BackupData {
       ...(r.archivedAt !== undefined ? { archivedAt: num(r.archivedAt) } : {}),
       ...(r.dueDate !== undefined ? { dueDate: day(r.dueDate) } : {}),
       ...(r.completedAt !== undefined ? { completedAt: num(r.completedAt) } : {}),
+      ...(r.assistantId !== undefined ? { assistantId: id(r.assistantId) } : {}),
     };
   });
   unique(items.map((item) => item.id));

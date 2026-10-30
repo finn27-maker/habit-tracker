@@ -20,7 +20,7 @@ async function setup() {
   let n = 0;
   const lists = createListsRepo(db, { newId: () => `list-${++n}`, starters: FIXTURE_LISTS });
   const items = createItemsRepo(db, { newId: () => `item-${++n}`, now: () => NOW });
-  const repo = createAssistantRepo(db, { newId: () => `new-${++n}`, now: () => NOW });
+  const repo = createAssistantRepo(db, { newId: () => `new-${++n}` });
   await lists.ensureStarterLists();
   return { db, lists, items, repo };
 }
@@ -135,7 +135,7 @@ describe('saving received to-dos', () => {
 
   it('leaves out the due date when there is none', async () => {
     const { db, repo } = await setup();
-    await repo.save([incoming('t1', 'Work', undefined)]);
+    await repo.save([{ ...incoming('t1'), due: undefined }]);
     const saved = await db.items.where('assistantId').equals('t1').first();
     expect(saved).not.toHaveProperty('dueDate');
   });
@@ -150,6 +150,14 @@ describe('saving received to-dos', () => {
     expect(assistant).toHaveLength(1);
     expect(assistant[0]!.order).toBe(all.value.length - 1);
     expect(await db.items.where('listId').equals(assistant[0]!.id).count()).toBe(2);
+  });
+
+  it('creates the Assistant list first when there are no lists at all', async () => {
+    const { db, lists, repo } = await setup();
+    await db.lists.clear();
+    await repo.save([incoming('t1')]);
+    const all = await lists.getAll();
+    expect(all).toMatchObject({ ok: true, value: [{ name: 'Assistant', order: 0 }] });
   });
 
   it('reuses an existing Assistant list', async () => {

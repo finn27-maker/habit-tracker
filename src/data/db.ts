@@ -20,6 +20,8 @@ export interface ItemRecord {
   dueDate?: string;
   /** To-dos only: when it was checked off. */
   completedAt?: number;
+  /** To-dos from the owner's assistant: its id, so the same to-do is never added twice. */
+  assistantId?: string;
 }
 
 export interface CompletionRecord {
@@ -62,6 +64,10 @@ export function createDb(name = 'habit-tracker'): HabitDb {
     completions: 'id, itemId, dayKey, [itemId+dayKey]',
     targetHistory: '[itemId+effectiveWeekStart], itemId',
     meta: 'key',
+  });
+  // v2 indexes assistantId (assistant to-dos). Existing rows have none, so no upgrade() is needed.
+  db.version(2).stores({
+    items: 'id, listId, archivedAt, assistantId',
   });
   return db;
 }

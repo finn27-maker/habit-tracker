@@ -1,6 +1,10 @@
 <script lang="ts">
   import { untrack } from 'svelte';
+  import type { AssistantRepo } from '../data/assistant-repo';
   import type { BackupRepo } from '../data/backup-repo';
+  import type { SyncResult } from '../platform/assistant-sync';
+  import AssistantSheet from './AssistantSheet.svelte';
+  import VersionLine from './VersionLine.svelte';
   import type { ItemsRepo } from '../data/items-repo';
   import type { ListsRepo } from '../data/lists-repo';
   import type { Clock } from '../platform/clock';
@@ -28,6 +32,9 @@
     clock,
     installHint,
     appUrl,
+    assistantRepo,
+    runSync,
+    revision = 0,
   }: {
     listsRepo: ListsRepo;
     itemsRepo: ItemsRepo;
@@ -38,7 +45,14 @@
     installHint: InstallHint;
     /** The app's own address, sent by Share this app. */
     appUrl: string;
+    /** The owner's assistant pairing, reached only by holding the version line. */
+    assistantRepo: AssistantRepo;
+    runSync: (force?: boolean) => Promise<SyncResult>;
+    /** Goes up when to-dos arrive from the assistant, so the screen reloads them. */
+    revision?: number;
   } = $props();
+
+  let assistantOpen = $state(false);
 
   const backup = untrack(() => new BackupState({ repo: backupRepo, share, clock }));
 
@@ -65,6 +79,7 @@
 <svelte:window onhashchange={navigated} />
 
 <main>
+  {#key revision}
   {#if route === 'lists'}
     <BackupBanner {backup} />
     {#key backup.restores}
@@ -72,6 +87,7 @@
     {/key}
     <ShareApp url={appUrl} {share} />
     <BackupSection {backup} />
+    <VersionLine onHold={() => (assistantOpen = true)} />
   {:else if route === 'list'}
     {#key listId}
       <ListPage listId={listId!} {listsRepo} {itemsRepo} {clock} />
@@ -89,6 +105,11 @@
     <BackupBanner {backup} />
     <Today {listsRepo} {itemsRepo} {clock} />
   {/if}
+  {/key}
 </main>
+
+{#if assistantOpen}
+  <AssistantSheet repo={assistantRepo} {runSync} onClose={() => (assistantOpen = false)} />
+{/if}
 
 <TabBar current={route === 'item' ? routeFromHash(backHref) : route} />
