@@ -22,6 +22,8 @@ export interface ItemRecord {
   completedAt?: number;
   /** To-dos from the owner's assistant: its id, so the same to-do is never added twice. */
   assistantId?: string;
+  /** To-dos only: a short note. Not indexed, so no schema change. */
+  note?: string;
 }
 
 export interface CompletionRecord {

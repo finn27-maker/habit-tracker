@@ -135,6 +135,7 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
               order: await nextOrder(listId),
               assistantId: todo.id,
               ...(todo.due ? { dueDate: todo.due } : {}),
+              ...(todo.note ? { note: todo.note } : {}),
             };
             await db.items.add(record);
             added++;

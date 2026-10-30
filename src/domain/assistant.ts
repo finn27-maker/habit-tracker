@@ -1,5 +1,5 @@
 import { dayKey, parseDayKey } from './dates';
-import { MAX_ITEM_TITLE } from './items';
+import { MAX_ITEM_TITLE, fitNote } from './items';
 import { MAX_NAME_LENGTH } from './lists';
 
 /**
@@ -21,6 +21,8 @@ export interface IncomingTodo {
   list: string;
   /** Local day key, YYYY-MM-DD. */
   due: string | undefined;
+  /** What the assistant couldn't turn into a field, e.g. a vague date like "next week". */
+  note?: string;
 }
 
 const CODE = /^[A-Za-z0-9_-]{43}$/;
@@ -44,7 +46,7 @@ const fitTitle = (title: string) =>
 
 function readTodo(raw: unknown): IncomingTodo | null {
   if (!isRecord(raw)) return null;
-  const { id, title, list, due } = raw;
+  const { id, title, list, due, note, notes } = raw;
   if (typeof id !== 'string' || !ID.test(id)) return null;
   if (typeof title !== 'string' || title.trim() === '') return null;
   if (due !== null && due !== undefined && (typeof due !== 'string' || !isRealDay(due))) return null;
@@ -54,6 +56,8 @@ function readTodo(raw: unknown): IncomingTodo | null {
     title: fitTitle(title.trim()),
     list: name.length <= MAX_NAME_LENGTH ? name : '',
     due: typeof due === 'string' ? due : undefined,
+    // The assistant's field name isn't settled, so both are read; "note" wins.
+    note: fitNote(note) ?? fitNote(notes),
   };
 }
 

@@ -20,6 +20,8 @@ export type FormValues = {
   target: number;
   /** YYYY-MM-DD, or '' for no date. Only used by to-dos. */
   dueDate: string;
+  /** '' for no note. Only used by to-dos. */
+  note: string;
 };
 export type FormState = { kind: 'new'; listId?: string } | { kind: 'edit'; row: TodayRow };
 
@@ -282,7 +284,7 @@ export class Board {
         listId: values.listId,
         type,
         ...(type === 'weekly' ? { target: values.target } : {}),
-        ...(type === 'todo' ? { dueDate: values.dueDate } : {}),
+        ...(type === 'todo' ? { dueDate: values.dueDate, note: values.note } : {}),
       }),
     );
   }
@@ -310,5 +312,6 @@ export function editValues(row: TodayRow): FormValues {
     type: row.item.type,
     target: row.kind === 'weekly' ? row.target : 3,
     dueDate: row.item.dueDate ?? '',
+    note: row.item.note ?? '',
   };
 }

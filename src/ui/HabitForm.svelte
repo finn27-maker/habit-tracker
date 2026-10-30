@@ -3,6 +3,7 @@
   import { addDaysToKey } from '../domain/dates';
   import {
     ITEM_KINDS,
+    MAX_NOTE,
     MAX_TARGET,
     MIN_TARGET,
     kindTitle,
@@ -58,6 +59,7 @@
   let due = $state<Due>(untrack(() => (initial ? dueChoice(initial.dueDate) : 'today')));
   // "Pick a date" never shows an empty field: an existing date, or two days from now.
   let date = $state(untrack(() => (due === 'pick' ? initial!.dueDate : addDaysToKey(today, 2))));
+  let note = $state(untrack(() => initial?.note ?? ''));
   let localError = $state('');
   let confirmingDelete = $state(false);
   /** Values waiting for the user to confirm a change to or from a to-do. */
@@ -91,7 +93,7 @@
       return;
     }
     localError = '';
-    const values = { title, listId, type, target, dueDate: chosen };
+    const values = { title, listId, type, target, dueDate: chosen, note: type === 'todo' ? note : '' };
     const question = initial ? typeChangeQuestion(title.trim(), initial.type, type) : null;
     if (question) pendingType = { values, question };
     else onSubmit(values);
@@ -178,6 +180,8 @@
           <label for="habit-date">Date</label>
           <input id="habit-date" type="date" bind:value={date} />
         {/if}
+        <label for="habit-note">Notes</label>
+        <textarea id="habit-note" rows="2" maxlength={MAX_NOTE} bind:value={note}></textarea>
       {/if}
 
       {#if localError || error}
@@ -242,6 +246,20 @@
     margin: 0;
     font-weight: 600;
     overflow-wrap: anywhere;
+  }
+  textarea {
+    display: block;
+    width: 100%;
+    min-height: 4.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--separator);
+    border-radius: 10px;
+    background: var(--bg);
+    color: var(--text);
+    font: inherit;
+    /* 16 px or more, or iOS zooms the page when the field is tapped. */
+    font-size: 1rem;
+    resize: vertical;
   }
   .buttons .danger {
     background: var(--danger-fill);

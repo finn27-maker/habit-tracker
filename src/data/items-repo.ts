@@ -27,7 +27,7 @@ export interface ItemsRepoDeps {
 export interface ItemsRepo {
   /**
    * `target` (times per week) is required for weekly goals and ignored otherwise;
-   * `dueDate` is optional for to-dos and ignored otherwise.
+   * `dueDate` and `note` are optional for to-dos and ignored otherwise.
    */
   create(input: {
     title: string;
@@ -35,6 +35,7 @@ export interface ItemsRepo {
     type: string;
     target?: number;
     dueDate?: string;
+    note?: string;
   }): Promise<Result<Item>>;
   /**
    * Changes name, list and, for weekly goals, the target from the current week onwards.
@@ -47,7 +48,15 @@ export interface ItemsRepo {
    */
   update(
     itemId: string,
-    input: { title: string; listId: string; type?: string; target?: number; dueDate?: string },
+    input: {
+      title: string;
+      listId: string;
+      type?: string;
+      target?: number;
+      dueDate?: string;
+      /** To-dos: the new note ('' clears it). Left out, the note stays as it is. */
+      note?: string;
+    },
   ): Promise<Result<Item>>;
   /** To-dos: checks it off (stamping the time) or reopens it. */
   setTodoDone(itemId: string, done: boolean): Promise<Result<Item>>;
@@ -107,10 +116,11 @@ const toItem = (record: ItemRecord): Item => ({
   order: record.order,
   ...(record.dueDate !== undefined ? { dueDate: record.dueDate } : {}),
   ...(record.completedAt !== undefined ? { completedAt: record.completedAt } : {}),
+  ...(record.note !== undefined ? { note: record.note } : {}),
 });
 
 /** A copy of the record without one optional field (put() then removes it from storage). */
-function without(record: ItemRecord, field: 'dueDate' | 'completedAt'): ItemRecord {
+function without(record: ItemRecord, field: 'dueDate' | 'completedAt' | 'note'): ItemRecord {
   const copy = { ...record };
   delete copy[field];
   return copy;
@@ -176,20 +186,23 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
 
           const parsed = validateItemInput({ ...input, type: input.type ?? item.type });
           if (!parsed.ok) return parsed;
-          const { title, listId, type, target, dueDate } = parsed.value;
+          const { title, listId, type, target, dueDate, note } = parsed.value;
           if (!(await db.lists.get(listId))) return err(LIST_NOT_FOUND);
 
           // Habits and goals come before to-dos, so crossing over joins the end of the list.
           const regrouped = (type === 'todo') !== (item.type === 'todo');
           const order = listId === item.listId && !regrouped ? item.order : await nextOrder(listId);
+          // Only a to-do's due date and note are edited here; a habit keeps what it had as a to-do.
+          const editsNote = type === 'todo' && input.note !== undefined;
+          const kept = type === 'todo' ? without(item, 'dueDate') : item;
           const record: ItemRecord = {
-            // Only a to-do's due date is edited here; a habit keeps the one it had as a to-do.
-            ...(type === 'todo' ? without(item, 'dueDate') : item),
+            ...(editsNote ? without(kept, 'note') : kept),
             type,
             title,
             listId,
             order,
             ...(dueDate !== undefined ? { dueDate } : {}),
+            ...(note !== undefined ? { note } : {}),
           };
           await db.items.put(record);
 

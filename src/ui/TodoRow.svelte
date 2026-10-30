@@ -21,8 +21,17 @@
       {#if row.done}✓{/if}
     </span>
   </button>
-  <button type="button" class="name" aria-label="Edit {row.item.title}" onclick={onEdit}>
+  <button
+    type="button"
+    class="name"
+    aria-label="Edit {row.item.title}"
+    aria-describedby={row.item.note ? `note-${row.item.id}` : undefined}
+    onclick={onEdit}
+  >
     {row.item.title}
+    {#if row.item.note}
+      <span class="note" id="note-{row.item.id}">{row.item.note}</span>
+    {/if}
   </button>
   {#if row.due}
     <span class="due" class:overdue={row.due.overdue}>{row.due.text}</span>
@@ -82,6 +91,14 @@
   .done .name {
     color: var(--text-secondary);
     text-decoration: line-through;
+  }
+  .note {
+    display: block;
+    padding-bottom: 0.375rem;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    text-decoration: none;
+    white-space: pre-line;
   }
   .due {
     flex: none;

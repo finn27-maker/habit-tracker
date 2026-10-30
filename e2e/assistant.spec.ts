@@ -24,7 +24,7 @@ async function mockAssistant(page: Page) {
     }
     const todos = acked.includes('t1')
       ? []
-      : [{ id: 't1', title: 'Pay Xcel bill', list: 'work', due: '2026-11-03', note: '' }];
+      : [{ id: 't1', title: 'Pay Xcel bill', list: 'work', due: '2026-11-03', note: 'next week' }];
     return route.fulfill({ status: 200, headers: CORS, json: { version: 1, todos } });
   });
   return acked;
@@ -91,11 +91,15 @@ test('pairing pulls the to-do into the matching list and sends nothing of mine',
 
   await page.getByRole('link', { name: /Work/ }).first().click();
   await expect(page.getByText('Pay Xcel bill')).toHaveCount(1);
+  // The assistant's note is kept and shown under the to-do (s16).
+  await expect(page.getByRole('button', { name: 'Edit Pay Xcel bill' })).toContainText('next week');
 
   expect(new Set(sent.map((req) => new URL(req.url()).origin))).toEqual(new Set([ASSISTANT]));
   for (const req of sent) {
     const body = req.postData() ?? '';
-    for (const word of ['Health', 'Home', 'Personal', 'Pay Xcel bill']) expect(body).not.toContain(word);
+    for (const word of ['Health', 'Home', 'Personal', 'Pay Xcel bill', 'next week']) {
+      expect(body).not.toContain(word);
+    }
   }
 
   await page.reload();
