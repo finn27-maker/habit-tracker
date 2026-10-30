@@ -115,6 +115,26 @@ test('pairing pulls the to-do into the matching list and sends nothing of mine',
   expect((await ok.boundingBox())!.height).toBeGreaterThanOrEqual(43.5);
   await ok.click();
   await expect(notice).toHaveCount(0);
+  // OK is saved after the card hides; a reload before it lands cancels the write (run 41084304915).
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          new Promise<boolean>((resolve, reject) => {
+            const open = indexedDB.open('habit-tracker');
+            open.onerror = () => reject(open.error);
+            open.onsuccess = () => {
+              const db = open.result;
+              const request = db.transaction('meta').objectStore('meta').get('assistantUnseen');
+              request.onsuccess = () => {
+                db.close();
+                resolve(request.result === undefined);
+              };
+            };
+          }),
+      ),
+    )
+    .toBe(true);
   await page.reload();
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
   await expect(notice).toHaveCount(0);
