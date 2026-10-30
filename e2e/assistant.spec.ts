@@ -63,7 +63,10 @@ test('an unpaired app never contacts the assistant, even on the Lists tab', asyn
   expect([...origins]).toEqual(['http://localhost:4173']);
 });
 
-test('pairing pulls the to-do into the matching list and sends nothing of mine', async ({ page }) => {
+test('pairing pulls the to-do into the matching list and sends nothing of mine', async ({
+  page,
+  browserName,
+}) => {
   const acked = await mockAssistant(page);
   const sent: Request[] = [];
   page.on('request', (req) => {
@@ -71,6 +74,13 @@ test('pairing pulls the to-do into the matching list and sends nothing of mine',
   });
 
   await page.goto('./#/lists');
+  if (browserName === 'chromium') {
+    // Chromium installs the service worker and shows this notice, sometimes seconds later on
+    // a slow runner. Appearing over the line mid-hold would (rightly) cancel the hold, so
+    // dismiss it first, as a person would.
+    await expect(page.getByText('✓ Ready to work offline')).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('button', { name: 'OK', exact: true }).click();
+  }
   await holdVersionLine(page);
   const sheet = page.getByRole('dialog', { name: 'Assistant' });
   await sheet.getByLabel('Pairing code').fill(CODE);
