@@ -29,7 +29,7 @@ describe('create', () => {
     const { items } = await setup();
     expect(await items.create({ ...meditate, title: '  Meditate ' })).toEqual({
       ok: true,
-      value: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 0 },
+      value: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 0, startedOn: '2026-10-14' },
     });
     const second = await items.create({ ...meditate, title: 'Read' });
     expect(second.ok && second.value.order).toBe(1);
@@ -84,6 +84,7 @@ describe('listActive', () => {
       'id',
       'listId',
       'order',
+      'startedOn',
       'title',
       'type',
     ]);
@@ -175,7 +176,14 @@ describe('weekly goals: create', () => {
     const { items, db } = await setup();
     expect(await items.create(peloton)).toEqual({
       ok: true,
-      value: { id: 'item-1', listId: 'list-1', type: 'weekly', title: 'Peloton ride', order: 0 },
+      value: {
+        id: 'item-1',
+        listId: 'list-1',
+        type: 'weekly',
+        title: 'Peloton ride',
+        order: 0,
+        startedOn: '2026-10-14',
+      },
     });
     expect(await db.targetHistory.toArray()).toEqual([
       { itemId: 'item-1', effectiveWeekStart: '2026-10-11', target: 3 },
@@ -418,7 +426,7 @@ describe('update', () => {
 
     expect(await items.update('item-1', { title: '  Stretch ', listId: 'list-4' })).toEqual({
       ok: true,
-      value: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Stretch', order: 1 },
+      value: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Stretch', order: 1, startedOn: '2026-10-14' },
     });
   });
 
@@ -730,7 +738,17 @@ describe('recently deleted', () => {
     await items.archive('item-1');
     expect(await items.listArchived()).toEqual({
       ok: true,
-      value: [{ id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 0, archivedAt: NOW }],
+      value: [
+        {
+          id: 'item-1',
+          listId: 'list-4',
+          type: 'daily',
+          title: 'Meditate',
+          order: 0,
+          startedOn: '2026-10-14',
+          archivedAt: NOW,
+        },
+      ],
     });
   });
 
@@ -744,7 +762,7 @@ describe('recently deleted', () => {
     expect(await items.restore('item-1')).toEqual({
       ok: true,
       value: {
-        item: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 1 },
+        item: { id: 'item-1', listId: 'list-4', type: 'daily', title: 'Meditate', order: 1, startedOn: '2026-10-14' },
         movedTo: null,
       },
     });

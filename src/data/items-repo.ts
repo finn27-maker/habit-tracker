@@ -117,6 +117,7 @@ const toItem = (record: ItemRecord): Item => ({
   ...(record.dueDate !== undefined ? { dueDate: record.dueDate } : {}),
   ...(record.completedAt !== undefined ? { completedAt: record.completedAt } : {}),
   ...(record.note !== undefined ? { note: record.note } : {}),
+  ...(record.startedOn !== undefined ? { startedOn: record.startedOn } : {}),
 });
 
 /** A copy of the record without one optional field (put() then removes it from storage). */
@@ -164,6 +165,8 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
             id: newId(),
             ...fields,
             order: await nextOrder(fields.listId),
+            // Habits and goals remember the day they were added, so rates count from it.
+            ...(fields.type === 'todo' ? {} : { startedOn: dayKey(new Date(now())) }),
           };
           await db.items.add(record);
           if (target !== undefined) {
@@ -203,6 +206,8 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
             order,
             ...(dueDate !== undefined ? { dueDate } : {}),
             ...(note !== undefined ? { note } : {}),
+            // A to-do becoming a habit or goal starts counting today, not from when it was a to-do.
+            ...(item.type === 'todo' && type !== 'todo' ? { startedOn: dayKey(new Date(now())) } : {}),
           };
           await db.items.put(record);
 

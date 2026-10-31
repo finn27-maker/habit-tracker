@@ -37,6 +37,7 @@ export interface BackupItem {
   completedAt?: number;
   assistantId?: string;
   note?: string;
+  startedOn?: string;
 }
 
 export interface BackupCompletion {
@@ -140,6 +141,7 @@ function readData(raw: unknown): BackupData {
       ...(r.completedAt !== undefined ? { completedAt: num(r.completedAt) } : {}),
       ...(r.assistantId !== undefined ? { assistantId: id(r.assistantId) } : {}),
       ...(r.note !== undefined ? { note: text(r.note) } : {}),
+      ...(r.startedOn !== undefined ? { startedOn: day(r.startedOn) } : {}),
     };
   });
   unique(items.map((item) => item.id));

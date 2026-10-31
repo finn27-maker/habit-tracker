@@ -46,7 +46,14 @@ test('30 habits with 20,000 check-ins open without a visible wait', async ({ pag
             const listId = (lists.result as { id: string }[])[0]!.id;
             const start = new Date(2024, 0, 1);
             for (let h = 0; h < 30; h += 1) {
-              tx.objectStore('items').put({ id: `h-${h}`, listId, type: 'daily', title: `Habit ${h}`, order: h });
+              tx.objectStore('items').put({
+                id: `h-${h}`,
+                listId,
+                type: 'daily',
+                title: `Habit ${h}`,
+                order: h,
+                startedOn: '2023-12-01',
+              });
               for (let i = 0; i < 667; i += 1) {
                 const day = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
                 const dayKey = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;

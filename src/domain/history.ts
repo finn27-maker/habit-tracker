@@ -21,6 +21,8 @@ export function historyStats(
   days: readonly string[],
   targets: readonly TargetPoint[],
   today: string,
+  /** The day a daily habit was added, when known; see dailyRate. */
+  startedOn?: string,
 ): HistoryStats {
   const total = days.filter((day) => day <= today).length;
   if (type === 'daily') {
@@ -29,8 +31,8 @@ export function historyStats(
       current: dailyStreak(days, today).current,
       best: bestDailyStreak(days, today),
       recentLabel: 'Last 30 days',
-      recent: dailyRate(days, today, 30),
-      allTime: dailyRate(days, today),
+      recent: dailyRate(days, today, 30, startedOn),
+      allTime: dailyRate(days, today, undefined, startedOn),
       total,
     };
   }
@@ -84,15 +86,26 @@ export function bestDailyStreak(days: readonly string[], today: string): number 
 }
 
 /**
- * Days done out of days measured, from the first completion (or the last `windowDays` days,
- * whichever is later) to today. Today only counts once it is done: an open day is not a miss.
+ * Days done out of days measured, from the habit's start (or the last `windowDays` days,
+ * whichever is later) to today. The start is the day it was added (`startedOn`), counted only
+ * once done, or its first completion if earlier; habits with no `startedOn` (added before it
+ * was recorded) start at their first completion. Today only counts once done: an open day is
+ * not a miss.
  */
-export function dailyRate(days: readonly string[], today: string, windowDays?: number): Rate {
+export function dailyRate(
+  days: readonly string[],
+  today: string,
+  windowDays?: number,
+  startedOn?: string,
+): Rate {
   const done = doneDays(days, today);
-  if (done.size === 0) return { done: 0, total: 0 };
-
   const todayNumber = dayNumber(today);
-  const first = Math.min(...done);
+  const added = startedOn === undefined ? undefined : dayNumber(startedOn);
+  // The day it was added only counts once done: a habit made in the evening isn't a miss.
+  const fromAdded = added === undefined ? undefined : done.has(added) ? added : added + 1;
+  if (done.size === 0 && fromAdded === undefined) return { done: 0, total: 0 };
+
+  const first = Math.min(...done, fromAdded ?? Infinity);
   const start = windowDays === undefined ? first : Math.max(first, todayNumber - windowDays + 1);
   const end = done.has(todayNumber) ? todayNumber : todayNumber - 1;
 

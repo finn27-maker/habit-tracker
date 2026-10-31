@@ -24,6 +24,8 @@ export interface ItemRecord {
   assistantId?: string;
   /** To-dos only: a short note. Not indexed, so no schema change. */
   note?: string;
+  /** Habits and goals: local day it was added (or became one). Not indexed. */
+  startedOn?: string;
 }
 
 export interface CompletionRecord {

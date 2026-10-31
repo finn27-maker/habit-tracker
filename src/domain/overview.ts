@@ -43,7 +43,13 @@ export function buildOverview(input: {
     for (const item of recurring) {
       const days = completionDays[item.id] ?? [];
       allDays.push(...days);
-      const stats = historyStats(item.type as 'daily' | 'weekly', days, targets[item.id] ?? [], today);
+      const stats = historyStats(
+        item.type as 'daily' | 'weekly',
+        days,
+        targets[item.id] ?? [],
+        today,
+        item.startedOn,
+      );
       rows.push({ item, list, stats, line: overviewLine(stats) });
     }
   }

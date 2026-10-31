@@ -43,7 +43,13 @@
   const counts = $derived(dayCounts(days));
   const stats = $derived(
     item
-      ? historyStats(item.type as 'daily' | 'weekly', days, board.targets[itemId] ?? [], board.today)
+      ? historyStats(
+          item.type as 'daily' | 'weekly',
+          days,
+          board.targets[itemId] ?? [],
+          board.today,
+          item.startedOn,
+        )
       : null,
   );
   const weeks = $derived(heatmapWeeks(board.today));

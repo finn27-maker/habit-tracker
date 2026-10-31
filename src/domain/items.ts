@@ -66,6 +66,11 @@ export interface Item extends ItemInput {
   completedAt?: number;
   /** To-dos only: a short note, from the user or the assistant. */
   note?: string;
+  /**
+   * Habits and goals: the local day (YYYY-MM-DD) it was added, or became one. Missing on items
+   * made before this was recorded, whose rates count from their first check-in.
+   */
+  startedOn?: string;
 }
 
 /**
