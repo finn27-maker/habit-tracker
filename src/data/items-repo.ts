@@ -195,8 +195,9 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
           // Habits and goals come before to-dos, so crossing over joins the end of the list.
           const regrouped = (type === 'todo') !== (item.type === 'todo');
           const order = listId === item.listId && !regrouped ? item.order : await nextOrder(listId);
-          // Only a to-do's due date and note are edited here; a habit keeps what it had as a to-do.
-          const editsNote = type === 'todo' && input.note !== undefined;
+          // Only a to-do's due date is edited here (a habit keeps the one it had as a to-do); the
+          // note is edited on any type when one is given.
+          const editsNote = input.note !== undefined;
           const kept = type === 'todo' ? without(item, 'dueDate') : item;
           const record: ItemRecord = {
             ...(editsNote ? without(kept, 'note') : kept),

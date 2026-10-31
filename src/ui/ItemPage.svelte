@@ -106,6 +106,9 @@
 
 {#if item && stats}
   <h1>{item.title}</h1>
+  {#if item.note}
+    <p class="note">{item.note}</p>
+  {/if}
 
   <dl class="stats">
     <div>
@@ -174,6 +177,12 @@
     margin: 0 0 1rem;
     font-size: 2.125rem;
     font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+  .note {
+    margin: -0.75rem 0 1rem;
+    color: var(--text-secondary);
+    white-space: pre-line;
     overflow-wrap: anywhere;
   }
   .notice {

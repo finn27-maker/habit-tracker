@@ -20,7 +20,7 @@ export type FormValues = {
   target: number;
   /** YYYY-MM-DD, or '' for no date. Only used by to-dos. */
   dueDate: string;
-  /** '' for no note. Only used by to-dos. */
+  /** '' for no note. */
   note: string;
 };
 export type FormState = { kind: 'new'; listId?: string } | { kind: 'edit'; row: TodayRow };
@@ -283,8 +283,9 @@ export class Board {
         title: values.title,
         listId: values.listId,
         type,
+        note: values.note,
         ...(type === 'weekly' ? { target: values.target } : {}),
-        ...(type === 'todo' ? { dueDate: values.dueDate, note: values.note } : {}),
+        ...(type === 'todo' ? { dueDate: values.dueDate } : {}),
       }),
     );
   }

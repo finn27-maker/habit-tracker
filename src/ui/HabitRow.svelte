@@ -20,8 +20,16 @@
       {#if row.doneToday}✓{/if}
     </span>
   </button>
-  <a class="name" href={itemHash(row.item.id)} aria-label="{row.item.title} details">
+  <a
+    class="name"
+    href={itemHash(row.item.id)}
+    aria-label="{row.item.title} details"
+    aria-describedby={row.item.note ? `note-${row.item.id}` : undefined}
+  >
     {row.item.title}
+    {#if row.item.note}
+      <span class="note" id="note-{row.item.id}">{row.item.note}</span>
+    {/if}
   </a>
   {#if row.streak > 0}
     <span class="streak" class:risk={row.atRisk} role="img" aria-label={streakLabel}>
@@ -66,7 +74,8 @@
   .name {
     flex: 1;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
     min-width: 0;
     min-height: 3rem;
     padding: 0 0.5rem;
@@ -74,6 +83,12 @@
     font-size: 1.0625rem;
     text-decoration: none;
     overflow-wrap: anywhere;
+  }
+  .note {
+    padding-bottom: 0.375rem;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    white-space: pre-line;
   }
   .streak {
     flex: none;

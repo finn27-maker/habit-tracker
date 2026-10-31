@@ -93,7 +93,7 @@
       return;
     }
     localError = '';
-    const values = { title, listId, type, target, dueDate: chosen, note: type === 'todo' ? note : '' };
+    const values = { title, listId, type, target, dueDate: chosen, note };
     const question = initial ? typeChangeQuestion(title.trim(), initial.type, type) : null;
     if (question) pendingType = { values, question };
     else onSubmit(values);
@@ -180,9 +180,9 @@
           <label for="habit-date">Date</label>
           <input id="habit-date" type="date" bind:value={date} />
         {/if}
-        <label for="habit-note">Notes</label>
-        <textarea id="habit-note" rows="2" maxlength={MAX_NOTE} bind:value={note}></textarea>
       {/if}
+      <label for="habit-note">Notes</label>
+      <textarea id="habit-note" rows="2" maxlength={MAX_NOTE} bind:value={note}></textarea>
 
       {#if localError || error}
         <p class="error" role="alert">{localError || error}</p>

@@ -100,16 +100,16 @@ describe('adding and editing notes', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('has no Notes field for habits and weekly goals', async () => {
+  it('keeps the Notes field, and what is typed in it, for every type (s19)', async () => {
     const ctx = setup();
     await ctx.listsRepo.ensureStarterLists();
     renderAt(ctx, '#/today');
     await screen.findByText(/Nothing here yet/);
     await fireEvent.click(screen.getByRole('button', { name: 'Add' }));
-    expect(notesField()).toBeInTheDocument();
-    for (const kind of ['Daily habit', 'Weekly goal']) {
+    await fireEvent.input(notesField(), { target: { value: '20 minutes' } });
+    for (const kind of ['Daily habit', 'Weekly goal', 'To-do']) {
       await fireEvent.click(screen.getByRole('radio', { name: kind }));
-      expect(screen.queryByLabelText('Notes')).toBeNull();
+      expect(notesField()).toHaveValue('20 minutes');
     }
   });
 });

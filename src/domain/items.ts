@@ -64,7 +64,7 @@ export interface Item extends ItemInput {
   dueDate?: string;
   /** To-dos only: when it was checked off. */
   completedAt?: number;
-  /** To-dos only: a short note, from the user or the assistant. */
+  /** A short note on any item, from the user or (for to-dos) the assistant. */
   note?: string;
   /**
    * Habits and goals: the local day (YYYY-MM-DD) it was added, or became one. Missing on items
@@ -74,8 +74,8 @@ export interface Item extends ItemInput {
 }
 
 /**
- * What validation keeps: `target` only for weekly goals, `dueDate` and `note` only for
- * to-dos (and only when one was given).
+ * What validation keeps: `target` only for weekly goals, `dueDate` only for to-dos, and a
+ * `note` on any type (each only when one was given).
  */
 export type ValidItem = ItemInput & { target?: number; dueDate?: string; note?: string };
 
@@ -85,7 +85,7 @@ export function validateItemInput(input: {
   type: string;
   target?: number;
   dueDate?: string;
-  /** To-dos only; '' or blank means no note. */
+  /** Any type; '' or blank means no note. */
   note?: string;
 }): Result<ValidItem> {
   const title = input.title.trim();
@@ -98,16 +98,15 @@ export function validateItemInput(input: {
   if (!ITEM_TYPES.includes(input.type as ItemType)) return err('Pick daily, weekly or to-do');
 
   const type = input.type as ItemType;
-  const base = { title, listId: input.listId, type };
+  const note = cleanNote(input.note ?? '');
+  if (note.length > MAX_NOTE) return err(NOTE_TOO_LONG);
+  const base = { title, listId: input.listId, type, ...(note === '' ? {} : { note }) };
 
   if (type === 'todo') {
     const { dueDate } = input;
-    const note = cleanNote(input.note ?? '');
-    if (note.length > MAX_NOTE) return err(NOTE_TOO_LONG);
-    const withNote = note === '' ? base : { ...base, note };
-    if (dueDate === undefined || dueDate === '') return ok(withNote);
+    if (dueDate === undefined || dueDate === '') return ok(base);
     if (!isDayKey(dueDate)) return err('Pick a valid date');
-    return ok({ ...withNote, dueDate });
+    return ok({ ...base, dueDate });
   }
 
   if (type === 'daily') return ok(base);

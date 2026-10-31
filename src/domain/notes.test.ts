@@ -54,9 +54,11 @@ describe('validateItemInput with a note', () => {
     expect(NOTE_TOO_LONG).toBe('Notes must be 200 characters or fewer');
   });
 
-  it('ignores a note on habits', () => {
-    const habit = validateItemInput({ ...todo, type: 'daily', note: 'x' });
-    expect(habit.ok && 'note' in habit.value).toBe(false);
+  it('keeps a note on habits and goals too (s19)', () => {
+    const habit = validateItemInput({ ...todo, type: 'daily', note: '  20 minutes ' });
+    expect(habit.ok && habit.value.note).toBe('20 minutes');
+    const goal = validateItemInput({ ...todo, type: 'weekly', target: 3, note: 'x'.repeat(MAX_NOTE + 1) });
+    expect(goal).toEqual({ ok: false, error: NOTE_TOO_LONG });
   });
 });
 
