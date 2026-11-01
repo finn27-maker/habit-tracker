@@ -78,12 +78,16 @@
     justify-content: space-between;
     padding: 0.5rem 0 1rem;
   }
+  /* At the largest text sizes the title must give way to the + button, not push the page sideways. */
   h1 {
+    min-width: 0;
     margin: 1.25rem 0 0;
     font-size: 2.125rem;
     font-weight: 700;
+    overflow-wrap: anywhere;
   }
   .add {
+    flex: none;
     min-width: 44px;
     min-height: 44px;
     border: 0;

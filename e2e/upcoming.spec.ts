@@ -32,6 +32,18 @@ test('Upcoming lists to-dos by date with their list, ticks them, and flips back 
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
 });
 
+test('the Upcoming title gives way to + at very large text instead of scrolling sideways', async ({ page }) => {
+  await page.goto('./#/upcoming');
+  await expect(page.getByRole('heading', { level: 1, name: 'Upcoming' })).toBeVisible();
+  // 36 px on a Mac is wider than CI's Linux WebKit at the a11y sweep's 28 px.
+  await page.addStyleTag({ content: ':root { font-size: 36px !important; }' });
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  await expect(page.getByRole('button', { name: 'Add', exact: true })).toBeInViewport();
+});
+
 test('Upcoming with 500 open to-dos opens without a visible wait', async ({ page }, testInfo) => {
   await page.goto('./');
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
