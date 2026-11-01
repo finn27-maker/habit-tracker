@@ -4,13 +4,19 @@
   let { current }: { current: Route } = $props();
 
   // List pages and Recently deleted belong to the Lists tab.
-  const tab = $derived(current === 'today' || current === 'history' ? current : 'lists');
+  const tab = $derived(
+    current === 'today' || current === 'upcoming' || current === 'history' ? current : 'lists',
+  );
 </script>
 
 <nav aria-label="Main">
   <a href="#/today" aria-current={tab === 'today' ? 'page' : undefined}>
     <span class="icon" aria-hidden="true">☀️</span>
     Today
+  </a>
+  <a href="#/upcoming" aria-current={tab === 'upcoming' ? 'page' : undefined}>
+    <span class="icon" aria-hidden="true">📅</span>
+    Upcoming
   </a>
   <a href="#/history" aria-current={tab === 'history' ? 'page' : undefined}>
     <span class="icon" aria-hidden="true">📈</span>

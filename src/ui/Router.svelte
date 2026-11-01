@@ -24,6 +24,7 @@
   import { itemIdFromHash, listIdFromHash, routeFromHash } from './route';
   import TabBar from './TabBar.svelte';
   import Today from './Today.svelte';
+  import UpcomingPage from './UpcomingPage.svelte';
 
   let {
     listsRepo,
@@ -93,6 +94,8 @@
     {#key listId}
       <ListPage listId={listId!} {listsRepo} {itemsRepo} {clock} />
     {/key}
+  {:else if route === 'upcoming'}
+    <UpcomingPage {listsRepo} {itemsRepo} {clock} />
   {:else if route === 'history'}
     <HistoryPage {listsRepo} {itemsRepo} {clock} />
   {:else if route === 'deleted'}

@@ -1,3 +1,4 @@
+import { dayNumber } from './dates';
 import type { Item } from './items';
 import type { List } from './lists';
 import { dailyStreak } from './streaks';
@@ -99,6 +100,70 @@ export function buildToday(input: Sources & { lists: readonly List[] }): TodayGr
       );
       return rows.length > 0 ? [{ list, rows }] : [];
     });
+}
+
+export type UpcomingKey = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later' | 'none';
+
+export interface UpcomingRow extends TodoRow {
+  list: List;
+}
+
+export interface UpcomingSection {
+  key: UpcomingKey;
+  title: string;
+  rows: UpcomingRow[];
+}
+
+const UPCOMING_TITLES: Record<UpcomingKey, string> = {
+  overdue: 'Overdue',
+  today: 'Today',
+  tomorrow: 'Tomorrow',
+  week: 'This week',
+  later: 'Later',
+  none: 'No date',
+};
+
+/** Which section a to-do falls in: "This week" is the 2 to 6 days after today. */
+function upcomingKey(item: Item, today: string): UpcomingKey {
+  if (item.dueDate === undefined) return 'none';
+  const days = dayNumber(item.dueDate) - dayNumber(today);
+  if (days < 0) return 'overdue';
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  return days < 7 ? 'week' : 'later';
+}
+
+/**
+ * Every open to-do from every list, earliest due first, in date sections. Habits, goals and
+ * finished to-dos are left out (lingering ones stay, checked), as are items whose list no
+ * longer exists, and so are empty sections.
+ */
+export function buildUpcoming(input: Sources & { lists: readonly List[] }): UpcomingSection[] {
+  const lingering = input.lingering ?? new Set<string>();
+  const listById = new Map(input.lists.map((list) => [list.id, list]));
+  const todos = input.items
+    .filter(
+      (item) => item.type === 'todo' && (item.completedAt === undefined || lingering.has(item.id)),
+    )
+    .sort(compareTodos);
+
+  const sections: Record<UpcomingKey, UpcomingRow[]> = {
+    overdue: [],
+    today: [],
+    tomorrow: [],
+    week: [],
+    later: [],
+    none: [],
+  };
+  for (const item of todos) {
+    const list = listById.get(item.listId);
+    if (list === undefined) continue;
+    const row = toRow(item, input) as TodoRow;
+    sections[upcomingKey(item, input.today)].push({ ...row, list });
+  }
+  return (Object.keys(UPCOMING_TITLES) as UpcomingKey[]).flatMap((key) =>
+    sections[key].length > 0 ? [{ key, title: UPCOMING_TITLES[key], rows: sections[key] }] : [],
+  );
 }
 
 /** A list's page: everything open in it (including future to-dos), then its completed to-dos. */

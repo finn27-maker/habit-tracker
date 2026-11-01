@@ -1,11 +1,25 @@
 <script lang="ts">
+  import type { List } from '../domain/lists';
   import type { TodoRow } from '../domain/today';
 
   let {
     row,
+    list,
     onToggle,
     onEdit,
-  }: { row: TodoRow; onToggle: () => void; onEdit: () => void } = $props();
+  }: {
+    row: TodoRow;
+    /** Shown as "🏡 Home" on pages that mix lists, like Upcoming. */
+    list?: List;
+    onToggle: () => void;
+    onEdit: () => void;
+  } = $props();
+
+  const describedBy = $derived(
+    [row.item.note ? `note-${row.item.id}` : '', list ? `list-${row.item.id}` : '']
+      .filter(Boolean)
+      .join(' ') || undefined,
+  );
 </script>
 
 <li class="row" class:done={row.done}>
@@ -25,12 +39,15 @@
     type="button"
     class="name"
     aria-label="Edit {row.item.title}"
-    aria-describedby={row.item.note ? `note-${row.item.id}` : undefined}
+    aria-describedby={describedBy}
     onclick={onEdit}
   >
     {row.item.title}
     {#if row.item.note}
       <span class="note" id="note-{row.item.id}">{row.item.note}</span>
+    {/if}
+    {#if list}
+      <span class="note list" id="list-{row.item.id}">{list.emoji} {list.name}</span>
     {/if}
   </button>
   {#if row.due}

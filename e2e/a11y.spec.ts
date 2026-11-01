@@ -73,6 +73,10 @@ async function everyScreen(page: Page, check: (screen: string) => Promise<void>)
   await page.getByRole('button', { name: 'Cancel' }).click();
   await page.getByRole('button', { name: 'Cancel' }).click();
 
+  await page.goto('./#/upcoming');
+  await expect(page.getByRole('heading', { level: 1, name: 'Upcoming' })).toBeVisible();
+  await check('Upcoming');
+
   await page.goto('./#/history');
   await expect(page.getByRole('link', { name: /^Meditate/ })).toBeVisible();
   await check('History');

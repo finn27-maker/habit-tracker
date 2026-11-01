@@ -57,7 +57,7 @@ Feature: Upcoming tab
   Scenario: Rows keep their due label and note
     Given the open to-do "Send report" in "Work" due 2026-11-05 with the note "Q3 numbers"
     When I open Upcoming
-    Then the row shows "Thursday" and "Q3 numbers"
+    Then the row shows "Thu" and "Q3 numbers"
 
   @edge-case
   Scenario: Within a section, the earliest due comes first across lists
@@ -118,7 +118,7 @@ Feature: Upcoming tab
   @happy-path
   Scenario: Adding from Upcoming starts a to-do
     When I tap "+" on Upcoming, type "Get stamps" and tap "Save"
-    Then "Get stamps" is shown under "No date" with its list's name
+    Then "Get stamps" is shown under "Today" (a new to-do is due today) with its list's name
 
   @error
   Scenario: A tick that can't be saved is reported

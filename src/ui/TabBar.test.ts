@@ -17,11 +17,12 @@ describe('TabBar', () => {
     expect(screen.getByRole('link', { name: 'Lists' })).toHaveAttribute('aria-current', 'page');
   });
 
-  it('shows Today, History and Lists in that order, and marks History when open', () => {
+  it('shows Today, Upcoming, History and Lists in that order, and marks History when open', () => {
     render(TabBar, { props: { current: 'history' } });
     const links = screen.getAllByRole('link');
     expect(links.map((link) => link.textContent?.trim().split(/\s+/).pop())).toEqual([
       'Today',
+      'Upcoming',
       'History',
       'Lists',
     ]);

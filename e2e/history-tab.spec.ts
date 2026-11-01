@@ -15,7 +15,7 @@ test('History shows every habit, opens its page, and Back returns to it', async 
   await page.getByRole('checkbox', { name: 'Stretch' }).click();
   await expect.poll(() => completionCount(page)).toBe(1);
 
-  await expect(nav(page).getByRole('link')).toHaveText(['☀️ Today', '📈 History', '☰ Lists']);
+  await expect(nav(page).getByRole('link')).toHaveText(['☀️ Today', '📅 Upcoming', '📈 History', '☰ Lists']);
   await nav(page).getByRole('link', { name: 'History' }).click();
   await expect(page).toHaveURL(/#\/history$/);
   await expect(page.getByRole('img', { name: 'Last 6 months: 1 check-in across 1 habit or goal' })).toBeVisible();

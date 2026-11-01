@@ -1,4 +1,4 @@
-export type Route = 'today' | 'history' | 'lists' | 'list' | 'item' | 'deleted';
+export type Route = 'today' | 'upcoming' | 'history' | 'lists' | 'list' | 'item' | 'deleted';
 
 const LIST_PREFIX = '#/list/';
 const ITEM_PREFIX = '#/item/';
@@ -6,6 +6,7 @@ const ITEM_PREFIX = '#/item/';
 /** Hash routing works on GitHub Pages, which has no rewrite rules for deep links. */
 export function routeFromHash(hash: string): Route {
   if (hash === '#/lists') return 'lists';
+  if (hash === '#/upcoming') return 'upcoming';
   if (hash === '#/history') return 'history';
   if (hash === '#/deleted') return 'deleted';
   if (listIdFromHash(hash) !== null) return 'list';
