@@ -2,9 +2,11 @@
 # User request 2026-11-01: "let's fix the flaky tests".
 # Root causes: (1) a real app bug: the add sheet picks its list when it opens, so a tap on +
 # before the first-run starter lists have loaded leaves the item with no list and Save fails;
-# the backup e2e test tapped + straight after the first load. (2) A test race: the assistant
-# 50-to-do test paired the app while its first page was still open, so a late focus event on
-# that page could take the delivery and the reloaded page had nothing new to announce.
+# the backup e2e test tapped + straight after the first load. (2) A test-harness gap: once the
+# offline service worker controls a page (from its second load on), Playwright's WebKit stops
+# routing that page's cross-origin requests, so the assistant 50-to-do test's reload sometimes
+# reached the real assistant (401, no CORS) instead of its stand-in. Captured logs from a
+# failing run showed the real 401. A first guess (an old page syncing late) was ruled out.
 # Architecture note: client-only PWA by user decision 0e39a594 (SSR preference waived for this project).
 
 Feature: The first tap on + always works, and the e2e suite is not flaky
@@ -58,20 +60,20 @@ Feature: The first tap on + always works, and the e2e suite is not flaky
     Then the sheet closes every time, in 30 repeated runs on both browsers
 
   @integration
-  Scenario: The assistant delivery test cannot be taken by the page before the reload
-    Given the fake assistant returns no to-dos until the first page has been closed
-    When the paired app opens on a fresh page
-    Then Today shows "50 new to-dos from your assistant: Task 0, Task 1, Task 2 and 47 more" every time, in 30 repeated runs on both browsers
+  Scenario: Assistant tests on WebKit always reach the stand-in, never the real assistant
+    Given service workers are blocked for the iPhone WebKit project, which cannot drive them anyway
+    When the paired app reloads in the 50-to-do test
+    Then Today shows "50 new to-dos from your assistant: Task 0, Task 1, Task 2 and 47 more" every time, in 30 repeated runs on both browsers, and no response comes from the real assistant
 
   @performance
   Scenario: The assistant delivery is still announced without a visible wait
-    When the paired app opens on a fresh page
+    When the paired app reloads
     Then the notice appears with the time recorded as a test annotation and a pathological ceiling of 15 seconds
 
   @security
-  Scenario: An unpaired first page never contacts the assistant
-    Given the app is opened before it has been paired
-    Then no request goes to the assistant from that page
+  Scenario: Offline checks keep running where service workers work
+    Given service workers are blocked only for iPhone WebKit
+    Then the Chromium offline and "Ready to work offline" tests still run with the service worker allowed, and the full suite reports 0 failures
 
   # --- Memento rule assertions (adapted for TypeScript) ---
 

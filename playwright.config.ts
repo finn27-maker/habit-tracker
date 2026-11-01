@@ -10,8 +10,11 @@ export default defineConfig({
     serviceWorkers: 'allow',
   },
   projects: [
-    { name: 'iphone-webkit', use: { ...devices['iPhone 15'] } },
     // Playwright's WebKit can't drive service workers, so offline checks run in Chromium.
+    // Blocked here because once one controls a page (from its second load on), WebKit stops
+    // routing that page's cross-origin requests: a reload in an assistant test then reached
+    // the real assistant instead of the test's stand-in.
+    { name: 'iphone-webkit', use: { ...devices['iPhone 15'], serviceWorkers: 'block' } },
     { name: 'chromium', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {

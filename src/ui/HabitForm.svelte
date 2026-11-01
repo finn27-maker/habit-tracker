@@ -74,6 +74,12 @@
   const targetChoices = Array.from({ length: MAX_TARGET - MIN_TARGET + 1 }, (_, i) => MIN_TARGET + i);
   const typeHint = $derived(ITEM_KINDS.find((kind) => kind.type === type)!.description);
 
+  // The sheet can open before the first-run lists exist (a tap on + the moment the app opens):
+  // give the item its default list as soon as they arrive, or Save would have nowhere to put it.
+  $effect(() => {
+    if (listId === '' && lists.length > 0) listId = startListId ?? lists[0]?.id ?? '';
+  });
+
   // A new item is ready to type straight away.
   $effect(() => {
     if (!editing) untrack(() => nameField?.focus());
