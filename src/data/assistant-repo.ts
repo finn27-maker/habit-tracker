@@ -1,6 +1,6 @@
 import { FALLBACK_LIST, matchList, type IncomingTodo } from '../domain/assistant';
 import { ok, type Result } from '../domain/result';
-import type { HabitDb, ItemRecord } from './db';
+import type { HabitDb, ItemRecord, ListRecord } from './db';
 import { SAVE_ERROR, guard } from './errors';
 import { newId as defaultNewId } from './ids';
 
@@ -15,6 +15,8 @@ const LAST_SYNC = 'assistantLastSync';
 const UNSEEN = 'assistantUnseen';
 
 const ASSISTANT_LIST = { name: FALLBACK_LIST, emoji: '📥', color: 'blue' } as const;
+/** How a list made for a new Scribe business starts (the owner chose these). */
+const BUSINESS_LIST = { emoji: '💼', color: 'blue' } as const;
 
 export interface AssistantStatus {
   paired: boolean;
@@ -72,14 +74,38 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
     }
   };
 
-  async function listFor(name: string): Promise<string> {
-    const lists = await db.lists.orderBy('order').toArray();
-    const found = matchList(lists, name) ?? matchList(lists, FALLBACK_LIST);
-    if (found) return found.id;
+  /** Appends a list and returns its id. */
+  async function addList(lists: readonly ListRecord[], list: Omit<ListRecord, 'id' | 'order'>) {
     const last = lists.at(-1);
     const id = newId();
-    await db.lists.add({ id, ...ASSISTANT_LIST, order: last ? last.order + 1 : 0 });
+    await db.lists.add({ id, ...list, order: last ? last.order + 1 : 0 });
     return id;
+  }
+
+  /**
+   * The list linked to the business; else an unlinked list with its name, which is linked now;
+   * else a new one. Linked by id, so a rename in Scribe or on the phone keeps the same list.
+   */
+  async function listForBusiness(business: NonNullable<IncomingTodo['business']>): Promise<string> {
+    const lists = await db.lists.orderBy('order').toArray();
+    const linked = lists.find((list) => list.businessId === business.id);
+    if (linked) return linked.id;
+    const named = matchList(
+      lists.filter((list) => list.businessId === undefined),
+      business.name,
+    );
+    if (named) {
+      await db.lists.update(named.id, { businessId: business.id });
+      return named.id;
+    }
+    return addList(lists, { ...BUSINESS_LIST, name: business.name, businessId: business.id });
+  }
+
+  async function listFor(todo: IncomingTodo): Promise<string> {
+    if (todo.business) return listForBusiness(todo.business);
+    const lists = await db.lists.orderBy('order').toArray();
+    const found = matchList(lists, todo.list) ?? matchList(lists, FALLBACK_LIST);
+    return found ? found.id : addList(lists, ASSISTANT_LIST);
   }
 
   async function nextOrder(listId: string): Promise<number> {
@@ -138,7 +164,7 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
           for (const todo of todos) {
             ids.push(todo.id);
             if (await db.items.where('assistantId').equals(todo.id).count()) continue;
-            const listId = await listFor(todo.list);
+            const listId = await listFor(todo);
             const record: ItemRecord = {
               id: newId(),
               listId,

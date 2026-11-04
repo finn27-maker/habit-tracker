@@ -6,6 +6,8 @@ export interface ListRecord {
   emoji: string;
   color: string;
   order: number;
+  /** The Scribe business whose assistant to-dos land here. Not indexed, so no schema change. */
+  businessId?: string;
 }
 
 export interface ItemRecord {

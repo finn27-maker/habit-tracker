@@ -23,6 +23,8 @@ export interface IncomingTodo {
   due: string | undefined;
   /** What the assistant couldn't turn into a field, e.g. a vague date like "next week". */
   note?: string;
+  /** The Scribe business it belongs to; when present it decides the list instead of `list`. */
+  business?: { id: string; name: string };
 }
 
 const CODE = /^[A-Za-z0-9_-]{43}$/;
@@ -40,13 +42,22 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isRealDay = (value: string) => DAY.test(value) && dayKey(parseDayKey(value)) === value;
 
-/** Long titles are cut to fit the app's limit rather than refused, so they still arrive. */
-const fitTitle = (title: string) =>
-  title.length > MAX_ITEM_TITLE ? `${title.slice(0, MAX_ITEM_TITLE - 1)}…` : title;
+/** Long text is cut to fit the app's limit rather than refused, so it still arrives. */
+const fitTo = (max: number, value: string) =>
+  value.length > max ? `${value.slice(0, max - 1)}…` : value;
+const fitTitle = (title: string) => fitTo(MAX_ITEM_TITLE, title);
+
+/** A valid business id with a list name to use if its list must be made (the id if none). */
+function readBusiness(id: unknown, name: unknown): IncomingTodo['business'] {
+  if (typeof id !== 'string' || !ID.test(id)) return undefined;
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  return { id, name: fitTo(MAX_NAME_LENGTH, trimmed === '' ? id : trimmed) };
+}
 
 function readTodo(raw: unknown): IncomingTodo | null {
   if (!isRecord(raw)) return null;
   const { id, title, list, due, note, notes } = raw;
+  const business = readBusiness(raw.business_id, raw.business_name);
   if (typeof id !== 'string' || !ID.test(id)) return null;
   if (typeof title !== 'string' || title.trim() === '') return null;
   if (due !== null && due !== undefined && (typeof due !== 'string' || !isRealDay(due))) return null;
@@ -58,6 +69,7 @@ function readTodo(raw: unknown): IncomingTodo | null {
     due: typeof due === 'string' ? due : undefined,
     // The assistant's field name isn't settled, so both are read; "note" wins.
     note: fitNote(note) ?? fitNote(notes),
+    ...(business ? { business } : {}),
   };
 }
 

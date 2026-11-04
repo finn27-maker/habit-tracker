@@ -185,6 +185,56 @@ test('a delivery of 50 to-dos is announced on Today without a visible wait', asy
   expect(ms).toBeLessThan(15_000);
 });
 
+test('to-dos for a new Scribe business arrive in their own 💼 list', async ({ page }) => {
+  const todos = [
+    { id: 'b1', title: 'Order shop signage', list: '', due: null, business_id: 'lxthrgarage', business_name: 'Lxthr Garage' },
+    { id: 'b2', title: 'Call the landlord', list: '', due: null, business_id: 'lxthrgarage', business_name: 'Lxthr Garage' },
+    { id: 'b3', title: 'Odd one', list: '', due: null, business_id: 'odd', business_name: '<img src=x onerror=alert(1)>' },
+  ];
+  await page.route(`${ASSISTANT}/**`, async (route) => {
+    const request = route.request();
+    if (request.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    if (request.url().endsWith('/api/habit-tracker/ack')) {
+      return route.fulfill({ status: 200, headers: CORS, json: { acknowledged: todos.length } });
+    }
+    return route.fulfill({ status: 200, headers: CORS, json: { version: 1, todos } });
+  });
+  // Already paired, as in the delivery test below.
+  await page.goto('./');
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible();
+  await page.evaluate(
+    (code) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('habit-tracker');
+        open.onerror = () => reject(open.error);
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('meta', 'readwrite');
+          tx.objectStore('meta').put({ key: 'assistantCode', value: code });
+          tx.objectStore('meta').put({ key: 'assistantConnected', value: true });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error);
+        };
+      }),
+    CODE,
+  );
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'New from your assistant' })).toContainText('3 new to-dos');
+
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Lists' }).click();
+  const garage = page.getByRole('link', { name: /Lxthr Garage/ });
+  await expect(garage).toContainText('💼');
+  await expect(page.getByText('<img src=x onerror=alert(1)>')).toBeVisible();
+  expect(await page.locator('img[src="x"]').count()).toBe(0);
+
+  await garage.click();
+  await expect(page.getByRole('checkbox', { name: 'Order shop signage' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Call the landlord' })).toBeVisible();
+});
+
 test('the security policy allows only the assistant as an outside connection', async ({ page }) => {
   await page.goto('./');
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');

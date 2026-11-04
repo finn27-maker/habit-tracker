@@ -24,6 +24,7 @@ export interface BackupList {
   emoji: string;
   color: ListColor;
   order: number;
+  businessId?: string;
 }
 
 export interface BackupItem {
@@ -119,7 +120,14 @@ function readData(raw: unknown): BackupData {
     (r): BackupList => {
       const color = text(r.color);
       check(color in LIST_COLORS);
-      return { id: id(r.id), name: text(r.name), emoji: text(r.emoji), color: color as ListColor, order: num(r.order) };
+      return {
+        id: id(r.id),
+        name: text(r.name),
+        emoji: text(r.emoji),
+        color: color as ListColor,
+        order: num(r.order),
+        ...(r.businessId !== undefined ? { businessId: id(r.businessId) } : {}),
+      };
     },
   );
   unique(lists.map((list) => list.id));
