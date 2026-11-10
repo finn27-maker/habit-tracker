@@ -30,6 +30,8 @@ export function typeChangeQuestion(title: string, from: ItemType, to: ItemType):
 export const MAX_ITEM_TITLE = 60;
 export const MIN_TARGET = 1;
 export const MAX_TARGET = 14;
+/** Most check-ins a weekly goal can record on one day from its calendar. */
+export const MAX_DAY_LOGS = MAX_TARGET;
 export const MAX_NOTE = 200;
 export const NOTE_TOO_LONG = `Notes must be ${MAX_NOTE} characters or fewer`;
 

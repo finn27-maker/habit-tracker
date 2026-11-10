@@ -66,7 +66,8 @@
           class:done={count > 0}
           class:today={day === today}
           aria-label={label(day)}
-          aria-pressed={day > today ? undefined : count > 0}
+          aria-pressed={day > today || kind === 'weekly' ? undefined : count > 0}
+          aria-haspopup={kind === 'weekly' && day <= today ? 'dialog' : undefined}
           disabled={day > today}
           onclick={() => onPick(day)}
         >

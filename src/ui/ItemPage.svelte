@@ -16,6 +16,7 @@
   import { Board } from './board.svelte';
   import BoardSheet from './BoardSheet.svelte';
   import Heatmap from './Heatmap.svelte';
+  import DayLogSheet from './DayLogSheet.svelte';
   import HistoryCalendar from './HistoryCalendar.svelte';
 
   let {
@@ -34,6 +35,9 @@
   } = $props();
 
   const board = untrack(() => new Board({ listsRepo, itemsRepo, clock }));
+
+  /** The day whose − count + sheet is open, for weekly goals. */
+  let sheetDay = $state<string | null>(null);
 
   // To-dos have no history page; their name opens Edit instead.
   const item = $derived(
@@ -137,8 +141,20 @@
     kind={item.type as 'daily' | 'weekly'}
     {counts}
     today={board.today}
-    onPick={(day) => board.backfill(itemId, day)}
+    onPick={(day) => (item.type === 'weekly' ? (sheetDay = day) : board.backfill(itemId, day))}
   />
+
+  {#if sheetDay}
+    {@const day = sheetDay}
+    <DayLogSheet
+      {day}
+      title={item.title}
+      count={counts.get(day) ?? 0}
+      onAdd={() => board.logOn(itemId, day)}
+      onRemove={() => board.unlogOn(itemId, day)}
+      onDone={() => (sheetDay = null)}
+    />
+  {/if}
 
   <Heatmap
     {weeks}

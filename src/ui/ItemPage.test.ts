@@ -141,19 +141,6 @@ describe('calendar backfill', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'October 2026' })).toBeInTheDocument();
   });
 
-  it('adds or removes one weekly log per tap', async () => {
-    const ctx = setup();
-    await seedGoal(ctx, ['2026-10-13', '2026-10-13']);
-    renderPage(ctx);
-
-    await fireEvent.click(await day('October 12, 0 logs'));
-    expect(await day('October 12, 1 log')).toHaveAttribute('aria-pressed', 'true');
-    await fireEvent.click(await day('October 13, 2 logs'));
-    expect(await day('October 13, 1 log')).toBeInTheDocument();
-    await fireEvent.click(await day('October 12, 1 log'));
-    expect(await day('October 12, 0 logs')).toHaveAttribute('aria-pressed', 'false');
-    await waitFor(async () => expect(await storedDays(ctx)).toEqual(['2026-10-13']));
-  });
 
   it('puts a day back and says so when saving fails', async () => {
     const ctx = setup();

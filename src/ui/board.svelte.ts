@@ -2,7 +2,7 @@ import { SvelteSet } from 'svelte/reactivity';
 import type { ItemsRepo } from '../data/items-repo';
 import type { ListsRepo } from '../data/lists-repo';
 import { dayKey, weekStartKey } from '../domain/dates';
-import type { Item, ItemType } from '../domain/items';
+import { MAX_DAY_LOGS, type Item, type ItemType } from '../domain/items';
 import type { List } from '../domain/lists';
 import { moveRecurring } from '../domain/order';
 import type { Result } from '../domain/result';
@@ -168,33 +168,33 @@ export class Board {
     );
   }
 
-  /**
-   * Calendar backfill for a past (or today's) day: a daily habit toggles that day; a weekly
-   * goal gains a log, or loses one if the day already has any.
-   */
+  /** Calendar backfill for a daily habit: toggles a past (or today's) day. */
   async backfill(itemId: string, day: string) {
-    const item = this.items.find((candidate) => candidate.id === itemId);
-    if (!item) return;
-    const { itemsRepo } = this.#deps;
     const before = this.days[itemId] ?? [];
-    const has = before.includes(day);
+    const next = before.includes(day) ? before.filter((d) => d !== day) : [...before, day];
+    await this.#applyDays(itemId, before, next, () => this.#deps.itemsRepo.toggleDay(itemId, day));
+  }
 
-    if (item.type === 'daily') {
-      const next = has ? before.filter((d) => d !== day) : [...before, day];
-      await this.#applyDays(itemId, before, next, () => itemsRepo.toggleDay(itemId, day));
-    } else if (has) {
-      const index = before.lastIndexOf(day);
-      await this.#applyDays(
-        itemId,
-        before,
-        before.filter((_, i) => i !== index),
-        () => itemsRepo.removeCompletionOn(itemId, day),
-      );
-    } else {
-      await this.#applyDays(itemId, before, [...before, day], () =>
-        itemsRepo.addCompletion(itemId, day),
-      );
-    }
+  /** Weekly goals, from the day sheet: one more log on a past (or today's) day. */
+  async logOn(itemId: string, day: string) {
+    const before = this.days[itemId] ?? [];
+    if (before.filter((d) => d === day).length >= MAX_DAY_LOGS) return;
+    await this.#applyDays(itemId, before, [...before, day], () =>
+      this.#deps.itemsRepo.addCompletion(itemId, day),
+    );
+  }
+
+  /** Weekly goals, from the day sheet: one fewer log on that day. */
+  async unlogOn(itemId: string, day: string) {
+    const before = this.days[itemId] ?? [];
+    const index = before.lastIndexOf(day);
+    if (index === -1) return;
+    await this.#applyDays(
+      itemId,
+      before,
+      before.filter((_, i) => i !== index),
+      () => this.#deps.itemsRepo.removeCompletionOn(itemId, day),
+    );
   }
 
   /**
