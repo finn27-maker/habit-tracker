@@ -1,6 +1,6 @@
 import { FALLBACK_LIST, matchList, type IncomingTodo } from '../domain/assistant';
 import { ok, type Result } from '../domain/result';
-import type { HabitDb, ItemRecord, ListRecord } from './db';
+import { businessesOf, type HabitDb, type ItemRecord, type ListRecord } from './db';
 import { SAVE_ERROR, guard } from './errors';
 import { newId as defaultNewId } from './ids';
 
@@ -83,22 +83,20 @@ export function createAssistantRepo(db: HabitDb, deps: AssistantRepoDeps = {}): 
   }
 
   /**
-   * The list linked to the business; else an unlinked list with its name, which is linked now;
-   * else a new one. Linked by id, so a rename in Scribe or on the phone keeps the same list.
+   * The list the business belongs to; else the list with its name, which it now joins (a list
+   * can hold several businesses, like MWCN and WTA in Boards); else a new one. Linked by id, so a
+   * rename in Scribe or on the phone keeps the same list.
    */
   async function listForBusiness(business: NonNullable<IncomingTodo['business']>): Promise<string> {
     const lists = await db.lists.orderBy('order').toArray();
-    const linked = lists.find((list) => list.businessId === business.id);
+    const linked = lists.find((list) => businessesOf(list).includes(business.id));
     if (linked) return linked.id;
-    const named = matchList(
-      lists.filter((list) => list.businessId === undefined),
-      business.name,
-    );
+    const named = matchList(lists, business.name);
     if (named) {
-      await db.lists.update(named.id, { businessId: business.id });
+      await db.lists.update(named.id, { businessIds: [...businessesOf(named), business.id] });
       return named.id;
     }
-    return addList(lists, { ...BUSINESS_LIST, name: business.name, businessId: business.id });
+    return addList(lists, { ...BUSINESS_LIST, name: business.name, businessIds: [business.id] });
   }
 
   async function listFor(todo: IncomingTodo): Promise<string> {

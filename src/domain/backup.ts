@@ -24,6 +24,8 @@ export interface BackupList {
   emoji: string;
   color: ListColor;
   order: number;
+  businessIds?: string[];
+  /** The single business link written by the previous version; still restored. */
   businessId?: string;
 }
 
@@ -95,6 +97,10 @@ const text = (value: unknown, allowEmpty = true): string => {
   return value as string;
 };
 const id = (value: unknown) => text(value, false);
+const ids = (value: unknown): string[] => {
+  check(Array.isArray(value));
+  return (value as unknown[]).map(id);
+};
 const num = (value: unknown): number => {
   check(typeof value === 'number' && Number.isFinite(value));
   return value as number;
@@ -126,6 +132,7 @@ function readData(raw: unknown): BackupData {
         emoji: text(r.emoji),
         color: color as ListColor,
         order: num(r.order),
+        ...(r.businessIds !== undefined ? { businessIds: ids(r.businessIds) } : {}),
         ...(r.businessId !== undefined ? { businessId: id(r.businessId) } : {}),
       };
     },

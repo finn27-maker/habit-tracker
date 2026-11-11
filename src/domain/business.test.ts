@@ -59,6 +59,19 @@ describe('business links in backups', () => {
     });
   });
 
+  it('restores a list shared by several businesses', () => {
+    expect(parseBackup(file({ businessIds: ['mwcn', 'wta'] }))).toMatchObject({
+      ok: true,
+      value: { data: { lists: [{ id: 'l1', businessIds: ['mwcn', 'wta'] }] } },
+    });
+  });
+
+  it('refuses a damaged list of businesses', () => {
+    expect(parseBackup(file({ businessIds: 'mwcn' })).ok).toBe(false);
+    expect(parseBackup(file({ businessIds: ['mwcn', ''] })).ok).toBe(false);
+    expect(parseBackup(file({ businessIds: [3] })).ok).toBe(false);
+  });
+
   it('restores a list from an older backup with no link', () => {
     const parsed = parseBackup(file({}));
     expect(parsed.ok).toBe(true);

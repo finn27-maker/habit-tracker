@@ -190,6 +190,9 @@ test('to-dos for a new Scribe business arrive in their own 💼 list', async ({ 
     { id: 'b1', title: 'Order shop signage', list: '', due: null, business_id: 'lxthrgarage', business_name: 'Lxthr Garage' },
     { id: 'b2', title: 'Call the landlord', list: '', due: null, business_id: 'lxthrgarage', business_name: 'Lxthr Garage' },
     { id: 'b3', title: 'Odd one', list: '', due: null, business_id: 'odd', business_name: '<img src=x onerror=alert(1)>' },
+    // Two businesses that share one existing list, like MWCN and WTA in Boards.
+    { id: 'b4', title: 'Board packet', list: '', due: null, business_id: 'mwcn', business_name: 'Personal' },
+    { id: 'b5', title: 'Council vote', list: '', due: null, business_id: 'wta', business_name: 'Personal' },
   ];
   await page.route(`${ASSISTANT}/**`, async (route) => {
     const request = route.request();
@@ -222,7 +225,7 @@ test('to-dos for a new Scribe business arrive in their own 💼 list', async ({ 
     CODE,
   );
   await page.reload();
-  await expect(page.getByRole('region', { name: 'New from your assistant' })).toContainText('3 new to-dos');
+  await expect(page.getByRole('region', { name: 'New from your assistant' })).toContainText('5 new to-dos');
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Lists' }).click();
   const garage = page.getByRole('link', { name: /Lxthr Garage/ });
@@ -233,6 +236,13 @@ test('to-dos for a new Scribe business arrive in their own 💼 list', async ({ 
   await garage.click();
   await expect(page.getByRole('checkbox', { name: 'Order shop signage' })).toBeVisible();
   await expect(page.getByRole('checkbox', { name: 'Call the landlord' })).toBeVisible();
+
+  // The shared list gets both businesses' to-dos, and no second "Personal" list appears.
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Lists' }).click();
+  await expect(page.getByRole('link', { name: /Personal/ })).toHaveCount(1);
+  await page.getByRole('link', { name: /Personal/ }).click();
+  await expect(page.getByRole('checkbox', { name: 'Board packet' })).toBeVisible();
+  await expect(page.getByRole('checkbox', { name: 'Council vote' })).toBeVisible();
 });
 
 test('the security policy allows only the assistant as an outside connection', async ({ page }) => {

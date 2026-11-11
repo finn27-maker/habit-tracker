@@ -6,8 +6,16 @@ export interface ListRecord {
   emoji: string;
   color: string;
   order: number;
-  /** The Scribe business whose assistant to-dos land here. Not indexed, so no schema change. */
+  /** The Scribe businesses whose assistant to-dos land here. Not indexed, so no schema change. */
+  businessIds?: string[];
+  /** The single business link saved before lists could be shared; read via businessesOf. */
   businessId?: string;
+}
+
+/** Every Scribe business a list belongs to, including a link saved by the previous version. */
+export function businessesOf(list: Pick<ListRecord, 'businessIds' | 'businessId'>): string[] {
+  const ids = [...(list.businessIds ?? []), ...(list.businessId ? [list.businessId] : [])];
+  return [...new Set(ids)];
 }
 
 export interface ItemRecord {
