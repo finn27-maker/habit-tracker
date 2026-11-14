@@ -25,6 +25,8 @@ export interface ListInput {
 export interface List extends ListInput {
   id: string;
   order: number;
+  /** Set by the first to-do drag: the list page then shows to-dos in their own order. */
+  manualTodoOrder?: boolean;
 }
 
 export const MAX_NAME_LENGTH = 40;

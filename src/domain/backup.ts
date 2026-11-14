@@ -27,6 +27,7 @@ export interface BackupList {
   businessIds?: string[];
   /** The single business link written by the previous version; still restored. */
   businessId?: string;
+  manualTodoOrder?: boolean;
 }
 
 export interface BackupItem {
@@ -105,6 +106,10 @@ const num = (value: unknown): number => {
   check(typeof value === 'number' && Number.isFinite(value));
   return value as number;
 };
+const flag = (value: unknown): boolean => {
+  check(typeof value === 'boolean');
+  return value as boolean;
+};
 const day = (value: unknown): string => {
   check(typeof value === 'string' && isDayKey(value));
   return value as string;
@@ -134,6 +139,7 @@ function readData(raw: unknown): BackupData {
         order: num(r.order),
         ...(r.businessIds !== undefined ? { businessIds: ids(r.businessIds) } : {}),
         ...(r.businessId !== undefined ? { businessId: id(r.businessId) } : {}),
+        ...(r.manualTodoOrder !== undefined ? { manualTodoOrder: flag(r.manualTodoOrder) } : {}),
       };
     },
   );

@@ -4,7 +4,7 @@ import type { ListsRepo } from '../data/lists-repo';
 import { dayKey, weekStartKey } from '../domain/dates';
 import { MAX_DAY_LOGS, type Item, type ItemType } from '../domain/items';
 import type { List } from '../domain/lists';
-import { moveRecurring } from '../domain/order';
+import { moveRecurring, moveTodo as reorderTodos } from '../domain/order';
 import type { Result } from '../domain/result';
 import type { TodayRow } from '../domain/today';
 import { latestDayInWeek, type TargetPoint } from '../domain/weekly';
@@ -258,6 +258,36 @@ export class Board {
     const result = await this.#deps.itemsRepo.moveTo(itemId, to);
     if (!result.ok) {
       this.items = before;
+      this.notice = result.error;
+    }
+  }
+
+  /**
+   * Moves an open to-do on its list page: shown at once (the list switches to its own to-do
+   * order), put back if saving fails.
+   */
+  async moveTodo(itemId: string, to: number) {
+    const item = this.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    const beforeItems = this.items;
+    const beforeLists = this.lists;
+    const manual = beforeLists.some((list) => list.id === item.listId && list.manualTodoOrder);
+    const changed = reorderTodos(
+      beforeItems.filter((other) => other.listId === item.listId),
+      itemId,
+      to,
+      manual,
+    );
+    this.items = beforeItems.map((other) => changed.find((next) => next.id === other.id) ?? other);
+    if (!manual) {
+      this.lists = beforeLists.map((list) =>
+        list.id === item.listId ? { ...list, manualTodoOrder: true } : list,
+      );
+    }
+    const result = await this.#deps.itemsRepo.moveTodo(itemId, to);
+    if (!result.ok) {
+      this.items = beforeItems;
+      this.lists = beforeLists;
       this.notice = result.error;
     }
   }

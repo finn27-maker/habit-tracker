@@ -323,9 +323,13 @@ describe('reordering habits in a list', () => {
     await make('Buy shoes', 'todo', 'list-1');
     await make('Peloton ride', 'weekly', 'list-1');
   }
-  const names = () => [...document.querySelectorAll('.reorder-name')].map((name) => name.textContent);
+  /** The habits-and-goals group only; to-dos have their own group (s27). */
+  const names = () =>
+    [...document.querySelectorAll('[aria-labelledby="reorder-habits"] .reorder-name')].map(
+      (name) => name.textContent,
+    );
 
-  it('shows handles for habits and goals only, in Edit mode', async () => {
+  it('shows habits and goals, then to-dos, each group with handles, in Edit mode', async () => {
     const ctx = setup();
     await fitness(ctx);
     renderAt(ctx, '#/list/list-1');
@@ -335,8 +339,9 @@ describe('reordering habits in a list', () => {
     expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reorder Stretch' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reorder Peloton ride' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reorder Buy shoes' })).toBeNull();
     expect(names()).toEqual(['Stretch', 'Peloton ride']);
+    const todos = screen.getByRole('list', { name: 'To-dos' });
+    expect(within(todos).getByRole('button', { name: 'Reorder Buy shoes' })).toBeInTheDocument();
   });
 
   it('has no Edit button with fewer than two habits and goals', async () => {

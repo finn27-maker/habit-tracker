@@ -1,6 +1,7 @@
 import { dayNumber } from './dates';
 import type { Item } from './items';
 import type { List } from './lists';
+import { compareListTodos } from './order';
 import { dailyStreak } from './streaks';
 import { compareCompleted, compareTodos, dueLabel, isOnToday, type DueLabel } from './todos';
 import { weeklyStatus, type TargetPoint } from './weekly';
@@ -70,14 +71,19 @@ const byOrder = (a: Item, b: Item) => a.order - b.order;
 
 /**
  * One list's rows: habits and goals in saved order, then the to-dos `showTodo` admits in
- * due order (lingering to-dos stay where they were, checked).
+ * due order, or `todoOrder` (lingering to-dos stay where they were, checked).
  */
-function listRows(listItems: readonly Item[], sources: Sources, showTodo: (item: Item) => boolean) {
+function listRows(
+  listItems: readonly Item[],
+  sources: Sources,
+  showTodo: (item: Item) => boolean,
+  todoOrder: (a: Item, b: Item) => number = compareTodos,
+) {
   const lingering = sources.lingering ?? new Set<string>();
   const recurring = listItems.filter((item) => item.type !== 'todo').sort(byOrder);
   const todos = listItems
     .filter((item) => item.type === 'todo' && (lingering.has(item.id) || showTodo(item)))
-    .sort(compareTodos);
+    .sort(todoOrder);
   return [...recurring, ...todos].map((item) => toRow(item, sources));
 }
 
@@ -166,7 +172,10 @@ export function buildUpcoming(input: Sources & { lists: readonly List[] }): Upco
   );
 }
 
-/** A list's page: everything open in it (including future to-dos), then its completed to-dos. */
+/**
+ * A list's page: everything open in it (including future to-dos), then its completed to-dos.
+ * Open to-dos follow the list's own order once the owner has dragged one, else their due dates.
+ */
 export function buildListView(input: Sources & { list: List }): {
   rows: TodayRow[];
   completed: TodoRow[];
@@ -179,7 +188,12 @@ export function buildListView(input: Sources & { list: List }): {
     .map((item) => toRow(item, input) as TodoRow);
 
   return {
-    rows: listRows(listItems, input, (item) => item.completedAt === undefined),
+    rows: listRows(
+      listItems,
+      input,
+      (item) => item.completedAt === undefined,
+      compareListTodos(input.list.manualTodoOrder === true),
+    ),
     completed,
   };
 }

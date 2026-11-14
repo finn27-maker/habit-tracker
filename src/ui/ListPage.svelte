@@ -49,6 +49,14 @@
     () => recurring.length,
     (id, to) => board.moveItem(id, to),
   );
+  /** The open to-dos as the list page shows them: what Edit mode's To-dos group reorders. */
+  const openTodos = $derived(
+    view ? view.rows.filter((row) => row.kind === 'todo' && !row.done).map((row) => row.item) : [],
+  );
+  const todoDrag = new RowDrag(
+    () => openTodos.length,
+    (id, to) => board.moveTodo(id, to),
+  );
 
   const clearMessage = (count: number) =>
     `Clear ${count} completed ${count === 1 ? 'to-do' : 'to-dos'}? You can restore them from Recently deleted.`;
@@ -67,7 +75,7 @@
     <div class="title">
       <h1><span aria-hidden="true">{list.emoji}</span> {list.name}</h1>
       <div class="actions">
-        {#if editing || recurring.length > 1}
+        {#if editing || recurring.length > 1 || openTodos.length > 1}
           <button type="button" class="text" onclick={() => (editing = !editing)}>
             {editing ? 'Done' : 'Edit'}
           </button>
@@ -92,27 +100,53 @@
 {#if board.loaded && !list}
   <p class="empty">List not found</p>
 {:else if view && editing}
-  <ul class="reorder">
-    {#each recurring as item, index (item.id)}
-      <li
-        class="reorder-row"
-        class:dragging={drag.isDragging(item.id)}
-        class:settling={drag.isMakingRoom(item.id)}
-        style:transform={drag.shift(index)}
-      >
-        <span class="reorder-name">{item.title}</span>
-        <ReorderHandle
-          id={item.id}
-          name={item.title}
-          {index}
-          count={recurring.length}
-          {drag}
-          onMove={(to) => board.moveItem(item.id, to)}
-        />
-      </li>
-    {/each}
-  </ul>
-  <p class="hint">Drag ☰ to put habits and goals in order. To-dos follow their due dates.</p>
+  {#if recurring.length > 0}
+    <h2 class="group-title" id="reorder-habits">Habits and goals</h2>
+    <ul class="reorder" aria-labelledby="reorder-habits">
+      {#each recurring as item, index (item.id)}
+        <li
+          class="reorder-row"
+          class:dragging={drag.isDragging(item.id)}
+          class:settling={drag.isMakingRoom(item.id)}
+          style:transform={drag.shift(index)}
+        >
+          <span class="reorder-name">{item.title}</span>
+          <ReorderHandle
+            id={item.id}
+            name={item.title}
+            {index}
+            count={recurring.length}
+            {drag}
+            onMove={(to) => board.moveItem(item.id, to)}
+          />
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  {#if openTodos.length > 0}
+    <h2 class="group-title" id="reorder-todos">To-dos</h2>
+    <ul class="reorder" aria-labelledby="reorder-todos">
+      {#each openTodos as item, index (item.id)}
+        <li
+          class="reorder-row"
+          class:dragging={todoDrag.isDragging(item.id)}
+          class:settling={todoDrag.isMakingRoom(item.id)}
+          style:transform={todoDrag.shift(index)}
+        >
+          <span class="reorder-name">{item.title}</span>
+          <ReorderHandle
+            id={item.id}
+            name={item.title}
+            {index}
+            count={openTodos.length}
+            drag={todoDrag}
+            onMove={(to) => board.moveTodo(item.id, to)}
+          />
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  <p class="hint">Drag ☰ to put habits, goals and to-dos in order. Today and Upcoming still sort to-dos by date.</p>
 {:else if view}
   {#if view.rows.length > 0}
     <ItemRows rows={view.rows} {board} />
@@ -241,6 +275,15 @@
   }
   .clear {
     color: var(--accent);
+  }
+  .group-title {
+    margin: 0 0 0.375rem 0.25rem;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+  }
+  .reorder + .group-title {
+    margin-top: 1.25rem;
   }
   .reorder {
     margin: 0;

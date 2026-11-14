@@ -2,7 +2,7 @@ import { addDaysToKey, dayKey, isDayKey, weekStartKey } from '../domain/dates';
 import { restoreTarget, type ArchivedItem } from '../domain/deleted';
 import { validateItemInput, type Item } from '../domain/items';
 import type { ListColor } from '../domain/lists';
-import { moveRecurring } from '../domain/order';
+import { moveRecurring, moveTodo } from '../domain/order';
 import { err, ok, type Result } from '../domain/result';
 import { latestDayInWeek, targetInForce, type TargetPoint } from '../domain/weekly';
 import type { HabitDb, ItemRecord } from './db';
@@ -16,6 +16,7 @@ const NOT_WEEKLY = 'Not a weekly goal';
 const NOT_TODO = 'Not a to-do';
 const NO_LIST = 'Create a list first, then restore.';
 const TODO_ORDER = 'To-dos follow their due dates';
+const TODO_NOT_FOUND = 'To-do not found';
 const INVALID_DAY = 'Invalid day';
 const FUTURE_DAY = "Pick a day that isn't in the future";
 
@@ -75,6 +76,11 @@ export interface ItemsRepo {
   clearCompleted(listId: string): Promise<Result<number>>;
   /** Moves a habit or goal to place `index` among its list's habits and goals (clamped). */
   moveTo(itemId: string, index: number): Promise<Result<void>>;
+  /**
+   * Moves an open to-do to place `index` among its list's open to-dos as the list page shows
+   * them (clamped), and from then on the list page keeps its own to-do order.
+   */
+  moveTodo(itemId: string, index: number): Promise<Result<void>>;
   /**
    * "Delete" from the user's point of view: hides the item everywhere but keeps its
    * completions and target history so a later History screen can show or restore it.
@@ -320,6 +326,22 @@ export function createItemsRepo(db: HabitDb, deps: ItemsRepoDeps = {}): ItemsRep
 
           const siblings = await db.items.where('listId').equals(item.listId).filter(isActive).toArray();
           await db.items.bulkPut(moveRecurring(siblings, itemId, index));
+          return ok(undefined);
+        }),
+      ),
+
+    moveTodo: (itemId, index) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', db.items, db.lists, async () => {
+          const item = await db.items.get(itemId);
+          if (!item || !isActive(item) || item.type !== 'todo' || item.completedAt !== undefined) {
+            return err(TODO_NOT_FOUND);
+          }
+          const list = await db.lists.get(item.listId);
+          const manual = list?.manualTodoOrder === true;
+          const siblings = await db.items.where('listId').equals(item.listId).filter(isActive).toArray();
+          await db.items.bulkPut(moveTodo(siblings, itemId, index, manual));
+          if (list && !manual) await db.lists.update(list.id, { manualTodoOrder: true });
           return ok(undefined);
         }),
       ),

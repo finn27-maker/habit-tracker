@@ -36,7 +36,10 @@ export function isOnToday(item: Item, today: string): boolean {
 }
 
 /** Earliest due date first (so overdue leads), undated last, then by saved order. */
-export function compareTodos(a: Item, b: Item): number {
+export function compareTodos(
+  a: Pick<Item, 'dueDate' | 'order'>,
+  b: Pick<Item, 'dueDate' | 'order'>,
+): number {
   if (a.dueDate !== b.dueDate) {
     if (a.dueDate === undefined) return 1;
     if (b.dueDate === undefined) return -1;

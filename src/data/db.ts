@@ -10,6 +10,8 @@ export interface ListRecord {
   businessIds?: string[];
   /** The single business link saved before lists could be shared; read via businessesOf. */
   businessId?: string;
+  /** Set by the first to-do drag on the list page. Not indexed. */
+  manualTodoOrder?: boolean;
 }
 
 /** Every Scribe business a list belongs to, including a link saved by the previous version. */
