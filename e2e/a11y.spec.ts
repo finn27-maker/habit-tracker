@@ -93,6 +93,9 @@ async function everyScreen(page: Page, check: (screen: string) => Promise<void>)
       JSON.stringify({ app: 'habit-tracker', version: 1, exportedAt: new Date().toISOString(), data: empty }),
     ),
   });
+  await expect(page.getByRole('dialog', { name: /^Restore from backup/ })).toBeVisible();
+  await check('Restore pick sheet');
+  await page.getByRole('button', { name: 'Replace everything instead' }).click();
   await expect(page.getByRole('alertdialog')).toBeVisible();
   await check('Restore confirmation');
   await page.getByRole('alertdialog').getByRole('button', { name: 'Cancel' }).click();

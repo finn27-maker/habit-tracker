@@ -10,8 +10,10 @@ import {
   parseBackup,
   summarizeBackup,
   type Backup,
+  type BackupData,
   type BackupSummary,
 } from '../domain/backup';
+import { addedBackMessage, restoreAdditions, restorePlan, type ListRestore } from '../domain/restore';
 import { dayKey } from '../domain/dates';
 import type { Clock } from '../platform/clock';
 import { saveFile, type ShareEnv } from '../platform/share';
@@ -33,10 +35,20 @@ export class BackupState {
   hasItems = $state(false);
   notice = $state('');
   /**
-   * A chosen file waiting for the user to confirm the replace. Raw, not deeply reactive:
-   * IndexedDB can't store Svelte's proxies, and nothing edits it.
+   * A chosen file: first the pick sheet ('pick'), then, if asked, the replace confirmation
+   * ('replace'). Raw, not deeply reactive: IndexedDB can't store Svelte's proxies, and nothing
+   * edits it.
    */
-  pending = $state.raw<{ backup: Backup; summary: BackupSummary } | null>(null);
+  pending = $state.raw<{
+    backup: Backup;
+    summary: BackupSummary;
+    /** What is on this phone now, to work out what is missing. */
+    current: BackupData;
+    plan: ListRestore[];
+    step: 'pick' | 'replace';
+  } | null>(null);
+  /** Lists ticked in the pick sheet. */
+  picked = $state<string[]>([]);
   /** Goes up after each restore so screens can reload what is stored. */
   restores = $state(0);
   /** True while a restore is being written: a big backup can take a few seconds. */
@@ -103,7 +115,7 @@ export class BackupState {
     else this.notice = saved.error;
   }
 
-  /** Reads and checks a chosen file; a good one waits for confirmation. */
+  /** Reads and checks a chosen file; a good one opens the pick sheet. */
   async choose(file: File) {
     this.notice = '';
     if (file.size > MAX_BACKUP_BYTES) {
@@ -115,11 +127,53 @@ export class BackupState {
       this.notice = parsed.error;
       return;
     }
-    this.pending = { backup: parsed.value, summary: summarizeBackup(parsed.value) };
+    const current = await this.#deps.repo.read();
+    if (!current.ok) {
+      this.notice = current.error;
+      return;
+    }
+    this.picked = [];
+    this.pending = {
+      backup: parsed.value,
+      summary: summarizeBackup(parsed.value),
+      current: current.value,
+      plan: restorePlan(parsed.value.data, current.value),
+      step: 'pick',
+    };
+  }
+
+  togglePick(listId: string) {
+    this.picked = this.picked.includes(listId)
+      ? this.picked.filter((id) => id !== listId)
+      : [...this.picked, listId];
+  }
+
+  /** "Replace everything instead": the full replace, behind its own confirmation. */
+  showReplace() {
+    if (this.pending) this.pending = { ...this.pending, step: 'replace' };
   }
 
   cancelRestore() {
     this.pending = null;
+  }
+
+  /** Adds back what's missing from the ticked lists; nothing on the phone is changed. */
+  async confirmAddBack() {
+    const pending = this.pending;
+    if (!pending) return;
+    const additions = restoreAdditions(pending.backup.data, pending.current, this.picked);
+    this.pending = null;
+    this.restoring = true;
+    this.notice = 'Adding back…';
+    const added = await this.#deps.repo.addBack(additions);
+    this.restoring = false;
+    if (!added.ok) {
+      this.notice = added.error;
+      return;
+    }
+    this.notice = addedBackMessage(additions, pending.backup.exportedAt);
+    this.restores += 1;
+    await this.#prepare();
   }
 
   async confirmRestore() {
@@ -148,7 +202,7 @@ export class BackupState {
   }
 }
 
-/** The confirmation text for a chosen backup. */
+/** The replace confirmation text for a chosen backup. */
 export function restoreMessage({ backup, summary }: { backup: Backup; summary: BackupSummary }) {
   const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
   return (

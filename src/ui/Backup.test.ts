@@ -45,9 +45,11 @@ const backupFile = (data = restoredData, made = new Date(2026, 9, 12, 20, 0)) =>
     type: 'application/json',
   });
 
-async function choose(file: File) {
+/** Picks a file; a good backup opens the pick sheet, and these tests go on to Replace (s28). */
+async function choose(file: File, { toReplace = true } = {}) {
   const input = document.querySelector<HTMLInputElement>('input[type=file]')!;
   await fireEvent.change(input, { target: { files: [file] } });
+  if (toReplace) await fireEvent.click(await screen.findByRole('button', { name: 'Replace everything instead' }));
 }
 
 const storedListNames = async (ctx: AppCtx) => (await ctx.db.lists.orderBy('order').toArray()).map((l) => l.name);
@@ -225,7 +227,7 @@ describe('restore', () => {
     const ctx = setup();
     renderLists(ctx);
     await readyToExport();
-    await choose(file);
+    await choose(file, { toReplace: false });
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.queryByRole('alertdialog')).toBeNull();
   });
@@ -238,7 +240,7 @@ describe('restore', () => {
     Object.defineProperty(huge, 'size', { value: MAX_BACKUP_BYTES + 1 });
     const read = vi.spyOn(huge, 'text');
 
-    await choose(huge);
+    await choose(huge, { toReplace: false });
 
     expect(await screen.findByText(BACKUP_TOO_LARGE)).toBeInTheDocument();
     expect(read).not.toHaveBeenCalled();

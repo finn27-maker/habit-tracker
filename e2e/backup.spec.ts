@@ -71,6 +71,7 @@ test('a shared backup restores the data it was made from', async ({ page }) => {
     mimeType: 'application/json',
     buffer: Buffer.from(file!.text),
   });
+  await page.getByRole('dialog').getByRole('button', { name: 'Replace everything instead' }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toContainText(
     'Replace everything on this phone with the backup from Oct 14, 2026? It has 4 lists, 1 habit or goal, 0 to-dos and 1 check-in.',
@@ -83,6 +84,47 @@ test('a shared backup restores the data it was made from', async ({ page }) => {
   await expect(page.getByRole('checkbox', { name: 'Stretch' })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole('img', { name: '1 day streak' })).toBeVisible();
+});
+
+test('a picked list gets back what was lost, and today’s changes stay', async ({ page }) => {
+  await stubShare(page, true);
+  await page.goto('./');
+  await addHabit(page, 'Meditate');
+  await page.getByRole('checkbox', { name: 'Meditate' }).click();
+  await expect.poll(() => completionCount(page)).toBe(1);
+  await openLists(page);
+  await page.getByRole('button', { name: 'Export backup' }).click();
+  await expect(page.getByRole('region', { name: 'Backup' })).toContainText('Last backup: Oct 14, 2026');
+  const [file] = await sharedFiles(page);
+
+  // Lose Meditate for good, and add Stretch after the backup.
+  await page.getByRole('link', { name: 'Today' }).click();
+  await page.getByRole('link', { name: 'Meditate details' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete' }).click();
+  await page.goto('./#/deleted');
+  await page.getByRole('button', { name: 'Delete Meditate' }).click();
+  await page.getByRole('alertdialog').getByRole('button', { name: /^Delete/ }).click();
+  await expect(page.getByText('Nothing deleted.')).toBeVisible();
+  await page.getByRole('link', { name: 'Today' }).click();
+  await addHabit(page, 'Stretch');
+
+  await openLists(page);
+  await page.locator('input[type=file]').setInputFiles({
+    name: file!.name,
+    mimeType: 'application/json',
+    buffer: Buffer.from(file!.text),
+  });
+  const sheet = page.getByRole('dialog', { name: 'Restore from backup (Oct 14, 2026)' });
+  await expect(sheet.getByText('1 to add back (1 check-in)')).toBeVisible();
+  await sheet.getByRole('checkbox', { name: /Health/ }).check();
+  await sheet.getByRole('button', { name: 'Add back 1 item' }).click();
+  await expect(page.getByText('Added back 1 item from the backup of Oct 14, 2026.')).toBeVisible();
+
+  await page.getByRole('link', { name: 'Today' }).click();
+  await expect(page.getByRole('checkbox', { name: 'Meditate' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.getByRole('checkbox', { name: 'Stretch' })).toBeVisible();
 });
 
 test('without file sharing the backup downloads instead', async ({ page }) => {
@@ -137,6 +179,7 @@ test('three years of history restores, showing Restoring… meanwhile', async ({
       JSON.stringify({ app: 'habit-tracker', version: 1, exportedAt: '2026-10-12T20:00:00.000Z', data }),
     ),
   });
+  await page.getByRole('dialog').getByRole('button', { name: 'Replace everything instead' }).click();
   const replace = page.getByRole('alertdialog').getByRole('button', { name: 'Replace' });
   await expect(replace).toBeVisible();
 

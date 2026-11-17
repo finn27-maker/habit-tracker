@@ -1,5 +1,6 @@
 <script lang="ts">
   import { backupDateLabel } from '../domain/backup';
+  import { addBackButton, canAddBack, restoreListLabel } from '../domain/restore';
   import { restoreMessage, type BackupState } from './backup.svelte';
 
   let { backup }: { backup: BackupState } = $props();
@@ -51,7 +52,41 @@
   />
 </section>
 
-{#if backup.pending}
+{#if backup.pending?.step === 'pick'}
+  {@const pending = backup.pending}
+  {@const button = addBackButton(pending.plan, backup.picked)}
+  <div class="backdrop">
+    <div class="confirm pick" role="dialog" aria-modal="true" aria-labelledby="pick-title">
+      <h3 id="pick-title">Restore from backup ({backupDateLabel(Date.parse(pending.backup.exportedAt))})</h3>
+      <p class="hint">Tick lists to add back what's missing from this phone. Nothing on the phone changes.</p>
+      <ul class="picks">
+        {#each pending.plan as list (list.id)}
+          <li>
+            <label class:muted={!canAddBack(list)}>
+              <input
+                type="checkbox"
+                checked={backup.picked.includes(list.id)}
+                disabled={!canAddBack(list)}
+                onchange={() => backup.togglePick(list.id)}
+              />
+              <span class="list-name"><span aria-hidden="true">{list.emoji}</span> {list.name}</span>
+              <span class="what">{restoreListLabel(list)}</span>
+            </label>
+          </li>
+        {/each}
+      </ul>
+      <div class="buttons stacked">
+        <button type="button" disabled={!button.enabled} onclick={() => backup.confirmAddBack()}>
+          {button.text}
+        </button>
+        <button type="button" class="secondary" onclick={() => backup.showReplace()}>
+          Replace everything instead
+        </button>
+        <button type="button" class="secondary" onclick={() => backup.cancelRestore()}>Cancel</button>
+      </div>
+    </div>
+  </div>
+{:else if backup.pending}
   {@const pending = backup.pending}
   <div class="backdrop">
     <div class="confirm" role="alertdialog" aria-modal="true" aria-labelledby="restore-title">
@@ -146,5 +181,55 @@
   }
   .destructive {
     background: var(--danger-fill);
+  }
+  .pick {
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+  .pick h3 {
+    margin: 0 0 0.375rem;
+    font-size: 1.0625rem;
+    overflow-wrap: anywhere;
+  }
+  .hint {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+  .picks {
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+  }
+  .picks li + li {
+    border-top: 1px solid var(--separator);
+  }
+  .picks label {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.625rem;
+    min-height: 44px;
+    padding: 0.375rem 0;
+  }
+  .picks input {
+    grid-row: span 2;
+    width: 1.375rem;
+    height: 1.375rem;
+    margin: 0;
+  }
+  .list-name {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .what {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+  }
+  .muted .list-name {
+    color: var(--text-secondary);
+  }
+  .stacked {
+    flex-direction: column;
   }
 </style>

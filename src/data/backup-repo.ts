@@ -22,6 +22,12 @@ export interface BackupRepo {
    * This phone's backup date and reminder snooze are kept.
    */
   restore(data: BackupData): Promise<Result<void>>;
+  /**
+   * Adds records from a backup (see domain/restore.ts) in one transaction, skipping any whose
+   * id is already on the phone, so nothing there is ever replaced. Resolves to how many items
+   * were added.
+   */
+  addBack(data: BackupData): Promise<Result<number>>;
   status(): Promise<Result<BackupStatus>>;
   markBackedUp(at: number): Promise<Result<void>>;
   snooze(until: number): Promise<Result<void>>;
@@ -70,6 +76,31 @@ export function createBackupRepo(db: HabitDb): BackupRepo {
             return ok(undefined);
           },
         ),
+      ),
+
+    addBack: (data) =>
+      guard(SAVE_ERROR, () =>
+        db.transaction('rw', [db.lists, db.items, db.completions, db.targetHistory], async () => {
+          const absent = async <T extends { id: string }>(
+            table: { bulkGet(keys: string[]): Promise<(unknown | undefined)[]> },
+            records: T[],
+          ) => {
+            const found = await table.bulkGet(records.map((record) => record.id));
+            return records.filter((_, index) => found[index] === undefined);
+          };
+          const lists = await absent(db.lists, data.lists);
+          const items = await absent(db.items, data.items);
+          const added = new Set(items.map((item) => item.id));
+          const completions = await absent(
+            db.completions,
+            data.completions.filter((completion) => added.has(completion.itemId)),
+          );
+          await db.lists.bulkAdd(lists);
+          await db.items.bulkAdd(items);
+          await db.completions.bulkAdd(completions);
+          await db.targetHistory.bulkPut(data.targetHistory.filter((point) => added.has(point.itemId)));
+          return ok(items.length);
+        }),
       ),
 
     status: () =>
