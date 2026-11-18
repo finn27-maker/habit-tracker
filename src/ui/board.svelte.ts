@@ -292,6 +292,24 @@ export class Board {
     }
   }
 
+  /** Puts a hand-ordered list back into date order: shown at once, put back if saving fails. */
+  async sortTodosByDate(listId: string) {
+    const before = this.lists;
+    this.lists = before.map((list) => {
+      if (list.id !== listId) return list;
+      const dated = { ...list };
+      delete dated.manualTodoOrder;
+      return dated;
+    });
+    const result = await this.#deps.listsRepo.sortTodosByDate(listId);
+    if (!result.ok) {
+      this.lists = before;
+      this.notice = result.error;
+      return false;
+    }
+    return true;
+  }
+
   openForm(next: FormState) {
     this.formError = '';
     this.form = next;

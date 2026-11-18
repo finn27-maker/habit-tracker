@@ -57,3 +57,31 @@ test('dragging a to-do on a list page keeps that order there, while Today stays 
   await expect(health.getByRole('checkbox')).toHaveCount(2);
   await expect(health.locator('.row .name')).toHaveText([/^Send term sheet/, /^Update pitch deck/]);
 });
+
+test('Sort by date puts a hand-ordered list back in date order, and it stays after a reload', async ({ page }) => {
+  await addTodo(page, 'Update pitch deck', 'none');
+  await addTodo(page, 'Send term sheet', 'today');
+  await addTodo(page, 'Call the bank', '2026-10-20');
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Lists' }).click();
+  await page.getByRole('link', { name: /Health/ }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  const group = page.getByRole('list', { name: 'To-dos' });
+  await expect(page.getByRole('button', { name: 'Sort by date' })).toHaveCount(0);
+
+  await group.getByRole('button', { name: 'Reorder Update pitch deck' }).focus();
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowUp');
+  await expect(group.locator('.reorder-name')).toHaveText(['Update pitch deck', 'Send term sheet', 'Call the bank']);
+
+  const sort = page.getByRole('button', { name: 'Sort by date' });
+  const box = (await sort.boundingBox())!;
+  expect(box.height).toBeGreaterThanOrEqual(43.5);
+  await sort.click();
+  await expect(group.locator('.reorder-name')).toHaveText(['Send term sheet', 'Call the bank', 'Update pitch deck']);
+  await expect(page.getByRole('status').filter({ hasText: 'To-dos sorted by date.' })).toBeVisible();
+  await expect(sort).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.reload();
+  await expect(page.locator('.row .name')).toHaveText([/^Send term sheet/, /^Call the bank/, /^Update pitch deck/]);
+});

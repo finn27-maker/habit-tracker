@@ -55,8 +55,19 @@
   );
   const todoDrag = new RowDrag(
     () => openTodos.length,
-    (id, to) => board.moveTodo(id, to),
+    (id, to) => moveTodo(id, to),
   );
+  /** Said once Sort by date has put the to-dos back in date order. */
+  let sortedMessage = $state('');
+
+  function moveTodo(id: string, to: number) {
+    sortedMessage = '';
+    return board.moveTodo(id, to);
+  }
+
+  async function sortByDate() {
+    if (await board.sortTodosByDate(listId)) sortedMessage = 'To-dos sorted by date.';
+  }
 
   const clearMessage = (count: number) =>
     `Clear ${count} completed ${count === 1 ? 'to-do' : 'to-dos'}? You can restore them from Recently deleted.`;
@@ -140,12 +151,16 @@
             {index}
             count={openTodos.length}
             drag={todoDrag}
-            onMove={(to) => board.moveTodo(item.id, to)}
+            onMove={(to) => moveTodo(item.id, to)}
           />
         </li>
       {/each}
     </ul>
+    {#if list?.manualTodoOrder && openTodos.length > 1}
+      <button type="button" class="sort" onclick={sortByDate}>Sort by date</button>
+    {/if}
   {/if}
+  <p class="hint" role="status">{sortedMessage}</p>
   <p class="hint">Drag ☰ to put habits, goals and to-dos in order. Today and Upcoming still sort to-dos by date.</p>
 {:else if view}
   {#if view.rows.length > 0}
@@ -322,6 +337,20 @@
     margin: 0.75rem 0.25rem;
     color: var(--text-secondary);
     font-size: 0.875rem;
+  }
+  .hint:empty {
+    display: none;
+  }
+  .sort {
+    min-height: 44px;
+    margin: 0.5rem 0 0;
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--accent);
+    font: inherit;
+    font-size: 1rem;
   }
   .backdrop {
     position: fixed;

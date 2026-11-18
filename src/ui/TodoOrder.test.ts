@@ -136,7 +136,7 @@ describe('to-do order on a list page', () => {
 
     await fireEvent.click(within(todoGroup()).getByRole('button', { name: 'Move Call the bank up' }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent(SAVE_ERROR);
+    expect(await screen.findByText(SAVE_ERROR)).toHaveAttribute('role', 'status');
     expect(groupNames()).toEqual(['Send term sheet', 'Call the bank', 'Update pitch deck']);
   });
 

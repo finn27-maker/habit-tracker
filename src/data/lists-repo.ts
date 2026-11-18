@@ -32,6 +32,8 @@ export interface ListsRepo {
   update(id: string, input: { name: string; emoji: string; color: string }): Promise<Result<List>>;
   /** Moves a list to place `index` (0 = first, clamped) and returns the new order. */
   moveTo(id: string, index: number): Promise<Result<List[]>>;
+  /** Puts a list dragged into its own to-do order back into date order. */
+  sortTodosByDate(id: string): Promise<Result<void>>;
   /** Deletes the list and archives (never deletes) its items. */
   remove(id: string): Promise<Result<void>>;
   openItemCount(id: string): Promise<Result<number>>;
@@ -97,6 +99,13 @@ export function createListsRepo(db: HabitDb, deps: ListsRepoDeps = {}): ListsRep
           await db.lists.bulkPut(reordered);
           return ok(reordered.map(toList));
         }),
+      ),
+
+    // The to-dos' order numbers stay: date order ignores them, and the next drag renumbers
+    // from the order on screen.
+    sortTodosByDate: (id) =>
+      guard(SAVE_ERROR, async () =>
+        (await db.lists.update(id, { manualTodoOrder: undefined })) === 0 ? err(NOT_FOUND) : ok(undefined),
       ),
 
     remove: (id) =>
