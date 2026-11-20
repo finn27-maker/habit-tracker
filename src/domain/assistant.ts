@@ -10,6 +10,10 @@ import { MAX_NAME_LENGTH } from './lists';
 export const ASSISTANT_ORIGIN = 'https://app.80dventures.com';
 export const TODOS_URL = `${ASSISTANT_ORIGIN}/api/habit-tracker/todos`;
 export const ACK_URL = `${ASSISTANT_ORIGIN}/api/habit-tracker/ack`;
+/** Notifications (s30): the server's public push key, this phone's push address, its due days. */
+export const PUSH_KEY_URL = `${ASSISTANT_ORIGIN}/api/habit-tracker/push/key`;
+export const PUSH_SUBSCRIPTION_URL = `${ASSISTANT_ORIGIN}/api/habit-tracker/push/subscription`;
+export const PUSH_DUE_DAYS_URL = `${ASSISTANT_ORIGIN}/api/habit-tracker/push/due-days`;
 
 /** Where a to-do goes when no list has its list name. */
 export const FALLBACK_LIST = 'Assistant';

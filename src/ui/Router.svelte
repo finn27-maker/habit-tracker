@@ -3,6 +3,7 @@
   import type { AssistantRepo } from '../data/assistant-repo';
   import type { BackupRepo } from '../data/backup-repo';
   import type { SyncResult } from '../platform/assistant-sync';
+  import type { Push } from '../platform/push';
   import AssistantNotice from './AssistantNotice.svelte';
   import AssistantSheet from './AssistantSheet.svelte';
   import VersionLine from './VersionLine.svelte';
@@ -36,6 +37,7 @@
     appUrl,
     assistantRepo,
     runSync,
+    push,
     revision = 0,
   }: {
     listsRepo: ListsRepo;
@@ -50,6 +52,8 @@
     /** The owner's assistant pairing, reached only by holding the version line. */
     assistantRepo: AssistantRepo;
     runSync: (force?: boolean) => Promise<SyncResult>;
+    /** Notifications, offered in the Assistant sheet to a paired phone. */
+    push?: Push;
     /** Goes up when to-dos arrive from the assistant, so the screen reloads them. */
     revision?: number;
   } = $props();
@@ -114,7 +118,7 @@
 </main>
 
 {#if assistantOpen}
-  <AssistantSheet repo={assistantRepo} {runSync} onClose={() => (assistantOpen = false)} />
+  <AssistantSheet repo={assistantRepo} {runSync} {push} onClose={() => (assistantOpen = false)} />
 {/if}
 
 <TabBar current={route === 'item' ? routeFromHash(backHref) : route} />

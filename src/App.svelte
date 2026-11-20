@@ -7,10 +7,12 @@
   import { createDb } from './data/db';
   import { createItemsRepo } from './data/items-repo';
   import { createListsRepo } from './data/lists-repo';
+  import { createNotifyRepo } from './data/notify-repo';
   import { createAssistantSync, type SyncResult } from './platform/assistant-sync';
   import { createClock } from './platform/clock';
   import { deviceKind, isStandalone, type InstallPrompt } from './platform/install';
   import { whenOnline } from './platform/online';
+  import { createPush } from './platform/push';
   import type { ShareEnv } from './platform/share';
   import { InstallHint } from './ui/install-hint.svelte';
   import Router from './ui/Router.svelte';
@@ -115,9 +117,42 @@
     return result;
   }
 
+  // Notifications (s30). Off until the owner turns them on in the Assistant sheet; then only
+  // the days open to-dos are due are sent, on open and resume and when the app is put away.
+  const swReady = () => navigator.serviceWorker.ready;
+  const push = createPush({
+    env: {
+      hasPush: 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window,
+      isIos: deviceKind(navigator.userAgent, navigator.maxTouchPoints) === 'ios',
+      permission: () => Notification.permission,
+      requestPermission: () => Notification.requestPermission(),
+      subscribe: async (key) =>
+        (await swReady()).pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key }),
+      currentSubscription: async () => (await swReady()).pushManager.getSubscription(),
+      timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+    notify: createNotifyRepo(db),
+    assistant: assistantRepo,
+    fetch: (url, init) => window.fetch(url, init),
+    isOnline: () => navigator.onLine,
+  });
+
+  async function syncAll() {
+    await runSync();
+    await push.syncDueDays();
+  }
+
   onMount(() => {
-    void runSync();
-    return onResume(() => void runSync());
+    void push.reregister().then(syncAll);
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') void push.syncDueDays({ keepalive: true });
+    };
+    document.addEventListener('visibilitychange', onHide);
+    const stopResume = onResume(() => void syncAll());
+    return () => {
+      document.removeEventListener('visibilitychange', onHide);
+      stopResume();
+    };
   });
 
 </script>
@@ -132,6 +167,7 @@
   {appUrl}
   {assistantRepo}
   {runSync}
+  {push}
   {revision}
 />
 

@@ -14,6 +14,14 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       injectRegister: false,
+      // A hand-written worker (src/sw.ts) so it can show notifications; it keeps the generated
+      // worker's precache, offline navigation and wait-for-Reload behaviour.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
+      },
       includeAssets: ['favicon.svg', 'apple-touch-icon-180x180.png'],
       manifest: {
         name: 'Habit Tracker',
@@ -38,11 +46,6 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,webmanifest}'],
-        navigateFallback: `${BASE}index.html`,
-        cleanupOutdatedCaches: true,
-      },
     }),
   ],
   resolve: process.env.VITEST ? { conditions: ['browser'] } : undefined,
@@ -60,6 +63,8 @@ export default defineConfig({
         'src/test-setup.ts',
         'src/testing/**',
         'src/main.ts',
+        // Service-worker wiring; its logic is in platform/push-handler.ts.
+        'src/sw.ts',
         'src/App.svelte',
         'src/vite-env.d.ts',
       ],

@@ -3,18 +3,51 @@
   import type { AssistantRepo, AssistantStatus } from '../data/assistant-repo';
   import { normalizeCode } from '../domain/assistant';
   import type { SyncResult } from '../platform/assistant-sync';
+  import type { Push, PushState } from '../platform/push';
   import Sheet from './Sheet.svelte';
 
   let {
     repo,
     runSync,
+    push,
     onClose,
   }: {
     repo: AssistantRepo;
     /** Syncs now; `true` skips the once-a-minute limit. */
     runSync: (force?: boolean) => Promise<SyncResult>;
+    /** Notifications (s30); offered only once the phone is paired and connected. */
+    push?: Push;
     onClose: () => void;
   } = $props();
+
+  const NOTIFY_FAILED = "Couldn't turn on notifications. Check your connection and try again.";
+  let pushState = $state<PushState | null>(null);
+  let pushError = $state('');
+  let pushBusy = $state(false);
+
+  async function refreshPush() {
+    if (push) pushState = await push.state();
+  }
+
+  async function turnOn() {
+    if (!push) return;
+    pushError = '';
+    pushBusy = true;
+    const result = await push.enable();
+    if (result === 'failed') pushError = NOTIFY_FAILED;
+    await refreshPush();
+    if (result === 'not-connected') await refresh();
+    pushBusy = false;
+  }
+
+  async function turnOff() {
+    if (!push) return;
+    pushError = '';
+    pushBusy = true;
+    await push.disable();
+    await refreshPush();
+    pushBusy = false;
+  }
 
   const BAD_CODE = "That doesn't look like a pairing code. Copy it again from your assistant.";
   const NOT_CONNECTED = 'Not connected. Get a new code from your assistant and paste it here.';
@@ -23,6 +56,7 @@
   let code = $state('');
   let error = $state('');
   let busy = $state(false);
+  const showNotifications = $derived(push !== undefined && status?.paired === true && status.connected);
 
   const statusText = $derived(
     status === null
@@ -49,7 +83,10 @@
     else error = result.error;
   }
 
-  onMount(refresh);
+  onMount(() => {
+    void refresh();
+    void refreshPush();
+  });
 
   async function pair(event: SubmitEvent) {
     event.preventDefault();
@@ -73,6 +110,8 @@
 
   async function remove() {
     error = '';
+    // Tell the assistant to stop first, while the code that proves who we are still exists.
+    if (pushState?.on) await turnOff();
     const result = await repo.unpair();
     if (!result.ok) error = result.error;
     await refresh();
@@ -110,9 +149,31 @@
     <button type="button" class="secondary" onclick={remove}>Remove</button>
   {/if}
 
+  {#if showNotifications && pushState}
+    <section aria-labelledby="notifications-title">
+      <h3 id="notifications-title">Notifications</h3>
+      {#if pushState.support === 'needs-home-screen'}
+        <p class="hint">To get notifications, open Habit Tracker from your Home Screen.</p>
+      {:else if pushState.support === 'unsupported'}
+        <p class="hint">This browser can't show notifications.</p>
+      {:else if pushState.permission === 'denied'}
+        <p class="hint">Notifications are blocked. Turn them on in Settings, Notifications, Habit Tracker.</p>
+      {:else if pushState.on}
+        <p class="hint">On: new to-dos from your assistant, and a 7:00 am summary when something is due.</p>
+        <button type="button" class="secondary" disabled={pushBusy} onclick={turnOff}>Turn off notifications</button>
+      {:else}
+        <button type="button" class="primary" disabled={pushBusy} onclick={turnOn}>Turn on notifications</button>
+      {/if}
+      {#if pushError}
+        <p class="error" role="alert">{pushError}</p>
+      {/if}
+    </section>
+  {/if}
+
   <p class="hint">
     New to-dos from your assistant arrive each time you open Habit Tracker. Nothing from your
-    lists is ever sent.
+    lists is ever sent, except that with notifications on, the dates to-dos are due are sent,
+    never their names.
   </p>
   <button type="button" class="secondary" onclick={onClose}>Close</button>
 </Sheet>
@@ -148,6 +209,13 @@
   .error {
     margin: 0;
     color: var(--danger);
+  }
+  section {
+    margin: 1.25rem 0 0.5rem;
+  }
+  h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1.0625rem;
   }
   button {
     width: 100%;
