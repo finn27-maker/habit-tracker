@@ -153,11 +153,14 @@
     <section aria-labelledby="notifications-title">
       <h3 id="notifications-title">Notifications</h3>
       {#if pushState.support === 'needs-home-screen'}
-        <p class="hint">To get notifications, open Habit Tracker from your Home Screen.</p>
+        <p class="hint">To get notifications, open this app from your Home Screen.</p>
       {:else if pushState.support === 'unsupported'}
         <p class="hint">This browser can't show notifications.</p>
       {:else if pushState.permission === 'denied'}
-        <p class="hint">Notifications are blocked. Turn them on in Settings, Notifications, Habit Tracker.</p>
+        <p class="hint">
+          Notifications are blocked. Turn them on in Settings, Notifications, under this app's Home
+          Screen name.
+        </p>
       {:else if pushState.on}
         <p class="hint">On: new to-dos from your assistant, and a 7:00 am summary when something is due.</p>
         <button type="button" class="secondary" disabled={pushBusy} onclick={turnOff}>Turn off notifications</button>

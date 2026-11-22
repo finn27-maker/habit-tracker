@@ -8,6 +8,8 @@
 # Notifications are only offered to a paired, connected phone, so family installs never see them
 # and never contact the server (decision 7ac92147).
 # iOS only allows web push for an app opened from the Home Screen (iOS 16.4+).
+# 2026-11-21: the owner renamed the Home Screen icon ("Accomplish"), and iOS lists the app in
+# Settings under that name, so the app's messages no longer name it.
 # Architecture note: client-only PWA by user decision 0e39a594 (SSR preference waived for this project).
 # Today is Friday 2026-11-20 in America/Chicago. The phone is paired and connected. Open to-dos:
 # "Pay rent" (due 2026-11-18, overdue), "Send term sheet" (due today), "Call the bank" (due
@@ -43,20 +45,20 @@ Feature: Notifications while Habit Tracker is closed
   Scenario: Declining the permission leaves notifications off
     When I tap "Turn on notifications" and choose "Don't Allow"
     Then nothing is sent to the assistant
-    And the sheet says "Notifications are blocked. Turn them on in Settings, Notifications, Habit Tracker."
+    And the sheet says "Notifications are blocked. Turn them on in Settings, Notifications, under this app's Home Screen name."
 
   @edge-case
   Scenario: A phone that blocked notifications earlier is told where to fix it
     Given notifications were blocked for Habit Tracker in the phone's settings
     When I open the Assistant sheet
     Then no "Turn on notifications" button is shown
-    And the sheet says "Notifications are blocked. Turn them on in Settings, Notifications, Habit Tracker."
+    And the sheet says "Notifications are blocked. Turn them on in Settings, Notifications, under this app's Home Screen name."
 
   @edge-case
   Scenario: Safari outside the Home Screen explains how to get notifications
     Given Habit Tracker is open in a Safari tab, where web push isn't available
     When I open the Assistant sheet
-    Then the sheet says "To get notifications, open Habit Tracker from your Home Screen."
+    Then the sheet says "To get notifications, open this app from your Home Screen."
     And no "Turn on notifications" button is shown
 
   @security

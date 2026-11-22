@@ -7,7 +7,8 @@ import AssistantSheet from './AssistantSheet.svelte';
 
 const CODE = 'Ab3_-defghijklmnopqrstuvwxyz0123456789ABCDE';
 const ON_TEXT = 'On: new to-dos from your assistant, and a 7:00 am summary when something is due.';
-const BLOCKED = 'Notifications are blocked. Turn them on in Settings, Notifications, Habit Tracker.';
+// The owner renamed the Home Screen icon, and iOS lists the app in Settings under that name.
+const BLOCKED = /^\s*Notifications are blocked\. Turn them on in Settings, Notifications, under this app's Home\s+Screen name\.\s*$/;
 const FAILED = "Couldn't turn on notifications. Check your connection and try again.";
 
 /** A stand-in for platform/push: records what the sheet asks for. */
@@ -77,7 +78,7 @@ describe('Notifications in the Assistant sheet', () => {
 
   it('says to open from the Home Screen in a Safari tab, or that the browser cannot', async () => {
     await view(setupApp(), fakePush({ support: 'needs-home-screen' }).push);
-    expect(await screen.findByText('To get notifications, open Habit Tracker from your Home Screen.')).toBeInTheDocument();
+    expect(await screen.findByText('To get notifications, open this app from your Home Screen.')).toBeInTheDocument();
     expect(turnOn()).toBeNull();
   });
 
