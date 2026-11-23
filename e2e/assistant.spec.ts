@@ -92,13 +92,16 @@ test('pairing pulls the to-do into the matching list and sends nothing of mine',
   await sheet.getByRole('button', { name: 'Close' }).click();
 
   // Pairing shows the Notifications section on the Lists tab, above Backup (s31), and it passes
-  // axe in both themes. Playwright's WebKit has no PushManager, so there it shows the
-  // open-from-Home-Screen hint instead of the button.
+  // axe in both themes. Test browsers can't take notifications (Playwright's WebKit has no
+  // PushManager; headless Chromium reports the permission as denied), so the section shows one
+  // of its hints here; the button states are covered by src/ui/Notifications.test.ts.
   const notifications = page.getByRole('region', { name: 'Notifications' });
   await expect(notifications).toBeVisible();
-  if (browserName === 'chromium') {
-    await expect(notifications.getByRole('button', { name: 'Turn on notifications' })).toBeVisible();
-  }
+  await expect(notifications).toContainText(/open this app from your Home Screen|Notifications are blocked|Turn on notifications/);
+  await expect(notifications.locator('xpath=following-sibling::section[1]')).toHaveAttribute(
+    'aria-labelledby',
+    'backup-title',
+  );
   for (const colorScheme of ['light', 'dark'] as const) {
     await page.emulateMedia({ colorScheme });
     const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
