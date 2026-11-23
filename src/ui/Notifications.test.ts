@@ -1,9 +1,11 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import 'fake-indexeddb/auto';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { describe, expect, it, vi } from 'vitest';
 import type { SyncResult } from '../platform/assistant-sync';
 import type { EnableResult, Push, PushState } from '../platform/push';
-import { setupApp, type AppCtx } from '../testing/app-fixture';
+import { routerProps, setupApp, type AppCtx } from '../testing/app-fixture';
 import AssistantSheet from './AssistantSheet.svelte';
+import Router from './Router.svelte';
 
 const CODE = 'Ab3_-defghijklmnopqrstuvwxyz0123456789ABCDE';
 const ON_TEXT = 'On: new to-dos from your assistant, and a 7:00 am summary when something is due.';
@@ -11,7 +13,7 @@ const ON_TEXT = 'On: new to-dos from your assistant, and a 7:00 am summary when 
 const BLOCKED = /^\s*Notifications are blocked\. Turn them on in Settings, Notifications, under this app's Home\s+Screen name\.\s*$/;
 const FAILED = "Couldn't turn on notifications. Check your connection and try again.";
 
-/** A stand-in for platform/push: records what the sheet asks for. */
+/** A stand-in for platform/push: records what the screen asks for. */
 function fakePush(start: Partial<PushState> = {}, enableResult: EnableResult = 'on') {
   let state: PushState = { support: 'supported', permission: 'default', on: false, ...start };
   const log: string[] = [];
@@ -33,22 +35,37 @@ function fakePush(start: Partial<PushState> = {}, enableResult: EnableResult = '
   return { push, log };
 }
 
-async function view(ctx: AppCtx, push: Push, paired = true) {
+/** The Lists tab, as the owner's paired phone shows it (s31). */
+async function lists(ctx: AppCtx, push: Push, paired = true) {
   if (paired) await ctx.assistantRepo.pair(CODE);
-  const runSync = vi.fn(async (): Promise<SyncResult> => ({ received: 0 }));
-  render(AssistantSheet, { props: { repo: ctx.assistantRepo, runSync, push, onClose: () => {} } });
-  await screen.findByRole('status');
+  location.hash = '#/lists';
+  render(Router, { props: { ...routerProps(ctx), push } });
+  await screen.findByRole('region', { name: 'Backup' });
 }
 
+const section = () => screen.queryByRole('region', { name: 'Notifications' });
 const turnOn = () => screen.queryByRole('button', { name: 'Turn on notifications' });
 
-describe('Notifications in the Assistant sheet', () => {
-  it('turns on and says what will arrive', async () => {
-    const { push, log } = fakePush();
-    await view(setupApp(), push);
-    expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
+/** Opens the Assistant sheet the way the owner does: a 3-second hold on the version line. */
+async function openSheet() {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await fireEvent.pointerDown(screen.getByText('Version 0.1.0'));
+  vi.advanceTimersByTime(3_000);
+  vi.useRealTimers();
+  return screen.findByRole('dialog', { name: 'Assistant' });
+}
 
-    await fireEvent.click(await screen.findByRole('button', { name: 'Turn on notifications' }));
+describe('Notifications on the Lists tab', () => {
+  it('sits directly above Backup and turns on', async () => {
+    const { push, log } = fakePush();
+    await lists(setupApp(), push);
+
+    const notifications = await screen.findByRole('region', { name: 'Notifications' });
+    const backup = screen.getByRole('region', { name: 'Backup' });
+    expect(notifications.compareDocumentPosition(backup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(notifications.nextElementSibling).toBe(backup);
+
+    await fireEvent.click(within(notifications).getByRole('button', { name: 'Turn on notifications' }));
     expect(await screen.findByText(ON_TEXT)).toBeInTheDocument();
     expect(log).toEqual(['enable']);
     expect(turnOn()).toBeNull();
@@ -56,74 +73,93 @@ describe('Notifications in the Assistant sheet', () => {
 
   it('turns off', async () => {
     const { push, log } = fakePush({ permission: 'granted', on: true });
-    await view(setupApp(), push);
+    await lists(setupApp(), push);
     await fireEvent.click(await screen.findByRole('button', { name: 'Turn off notifications' }));
     expect(await screen.findByRole('button', { name: 'Turn on notifications' })).toBeInTheDocument();
     expect(log).toEqual(['disable']);
   });
 
-  it('explains a declined or earlier-blocked permission', async () => {
-    const declined = fakePush({}, 'blocked');
-    await view(setupApp(), declined.push);
+  it('explains a declined permission', async () => {
+    await lists(setupApp(), fakePush({}, 'blocked').push);
     await fireEvent.click(await screen.findByRole('button', { name: 'Turn on notifications' }));
     expect(await screen.findByText(BLOCKED)).toBeInTheDocument();
     expect(turnOn()).toBeNull();
   });
 
   it('shows the blocked text with no button when blocked before', async () => {
-    await view(setupApp(), fakePush({ permission: 'denied' }).push);
+    await lists(setupApp(), fakePush({ permission: 'denied' }).push);
     expect(await screen.findByText(BLOCKED)).toBeInTheDocument();
     expect(turnOn()).toBeNull();
   });
 
   it('says to open from the Home Screen in a Safari tab, or that the browser cannot', async () => {
-    await view(setupApp(), fakePush({ support: 'needs-home-screen' }).push);
+    await lists(setupApp(), fakePush({ support: 'needs-home-screen' }).push);
     expect(await screen.findByText('To get notifications, open this app from your Home Screen.')).toBeInTheDocument();
     expect(turnOn()).toBeNull();
   });
 
   it('says when the browser has no notifications', async () => {
-    await view(setupApp(), fakePush({ support: 'unsupported' }).push);
+    await lists(setupApp(), fakePush({ support: 'unsupported' }).push);
     expect(await screen.findByText("This browser can't show notifications.")).toBeInTheDocument();
   });
 
   it('shows an error and stays off when turning on fails', async () => {
-    await view(setupApp(), fakePush({}, 'failed').push);
+    await lists(setupApp(), fakePush({}, 'failed').push);
     await fireEvent.click(await screen.findByRole('button', { name: 'Turn on notifications' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(FAILED);
     expect(turnOn()).toBeInTheDocument();
   });
 
-  it('shows Not connected when the assistant refuses the code', async () => {
+  it('disappears when the assistant refuses the code', async () => {
     const ctx = setupApp();
     const { push } = fakePush();
     push.enable = async () => {
       await ctx.assistantRepo.markNotConnected();
       return 'not-connected';
     };
-    await view(ctx, push);
+    await lists(ctx, push);
     await fireEvent.click(await screen.findByRole('button', { name: 'Turn on notifications' }));
-    expect(await screen.findByText('Not connected. Get a new code from your assistant and paste it here.')).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Notifications' })).toBeNull();
+    await waitFor(() => expect(section()).toBeNull());
   });
 
-  it('is not offered to an unpaired phone', async () => {
-    await view(setupApp(), fakePush().push, false);
-    await screen.findByText('Not paired');
-    expect(screen.queryByRole('heading', { name: 'Notifications' })).toBeNull();
+  it('is not shown to an unpaired phone and asks nothing of it', async () => {
+    const { push } = fakePush();
+    const state = vi.spyOn(push, 'state');
+    await lists(setupApp(), push, false);
+    expect(section()).toBeNull();
+    expect(state).not.toHaveBeenCalled();
   });
 
-  it('is not offered without notifications wired in', async () => {
+  it('is not shown to a disconnected phone', async () => {
     const ctx = setupApp();
     await ctx.assistantRepo.pair(CODE);
-    render(AssistantSheet, {
-      props: { repo: ctx.assistantRepo, runSync: async () => ({ received: 0 }), onClose: () => {} },
-    });
-    await screen.findByText('Connected to your assistant');
-    expect(screen.queryByRole('heading', { name: 'Notifications' })).toBeNull();
+    await ctx.assistantRepo.markNotConnected();
+    await lists(ctx, fakePush().push, false);
+    expect(section()).toBeNull();
   });
 
-  it('turns notifications off before forgetting the pairing on Remove', async () => {
+  it('is not shown without notifications wired in', async () => {
+    const ctx = setupApp();
+    await ctx.assistantRepo.pair(CODE);
+    location.hash = '#/lists';
+    render(Router, { props: routerProps(ctx) });
+    await screen.findByRole('region', { name: 'Backup' });
+    expect(section()).toBeNull();
+  });
+
+  it('appears after pairing in the Assistant sheet, without a reload', async () => {
+    const ctx = setupApp();
+    await lists(ctx, fakePush().push, false);
+    const sheet = await openSheet();
+    await fireEvent.input(within(sheet).getByLabelText('Pairing code'), { target: { value: CODE } });
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'Pair' }));
+    await within(sheet).findByText('Connected to your assistant');
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+
+    expect(await screen.findByRole('region', { name: 'Notifications' })).toBeInTheDocument();
+  });
+
+  it('turns notifications off first and disappears after Remove in the sheet', async () => {
     const ctx = setupApp();
     const { push, log } = fakePush({ permission: 'granted', on: true });
     const disable = push.disable;
@@ -131,17 +167,56 @@ describe('Notifications in the Assistant sheet', () => {
       log.push(`code ${(await ctx.assistantRepo.code()) === CODE ? 'still there' : 'gone'}`);
       await disable();
     };
-    await view(ctx, push);
+    await lists(ctx, push);
     await screen.findByRole('button', { name: 'Turn off notifications' });
+
+    const sheet = await openSheet();
+    await within(sheet).findByText('Connected to your assistant');
+    expect(within(sheet).queryByRole('heading', { name: 'Notifications' })).toBeNull();
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'Remove' }));
+    await within(sheet).findByText('Not paired');
+    expect(log).toEqual(['code still there', 'disable']);
+    await fireEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+
+    await waitFor(() => expect(section()).toBeNull());
+  });
+});
+
+describe('the Assistant sheet after the move', () => {
+  async function sheet(ctx: AppCtx, push?: Push) {
+    await ctx.assistantRepo.pair(CODE);
+    const runSync = vi.fn(async (): Promise<SyncResult> => ({ received: 0 }));
+    render(AssistantSheet, { props: { repo: ctx.assistantRepo, runSync, push, onClose: () => {} } });
+    await screen.findByText('Connected to your assistant');
+  }
+
+  it('has no Notifications switch but keeps pairing and Remove', async () => {
+    await sheet(setupApp(), fakePush().push);
+    expect(screen.queryByRole('heading', { name: 'Notifications' })).toBeNull();
+    expect(turnOn()).toBeNull();
+    expect(screen.getByLabelText('Pairing code')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pair' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Remove' })).toBeInTheDocument();
+  });
+
+  it('removes without touching notifications that are off or not wired in', async () => {
+    const off = fakePush();
+    await sheet(setupApp(), off.push);
     await fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
-    await waitFor(() => expect(log).toEqual(['code still there', 'disable']));
+    await screen.findByText('Not paired');
+    expect(off.log).toEqual([]);
+  });
+
+  it('removes when notifications are not wired in', async () => {
+    await sheet(setupApp());
+    await fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     expect(await screen.findByText('Not paired')).toBeInTheDocument();
   });
 
   it('says honestly what leaves the phone', async () => {
-    await view(setupApp(), fakePush().push);
+    await sheet(setupApp(), fakePush().push);
     expect(
-      await screen.findByText(/with notifications on, the dates to-dos are due are sent,\s+never their names\./),
+      screen.getByText(/with notifications on, the dates to-dos are due are sent,\s+never their names\./),
     ).toBeInTheDocument();
   });
 });

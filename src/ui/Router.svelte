@@ -21,6 +21,7 @@
   import ShareApp from './ShareApp.svelte';
   import ItemPage from './ItemPage.svelte';
   import ListPage from './ListPage.svelte';
+  import NotificationsSection from './NotificationsSection.svelte';
   import Lists from './Lists.svelte';
   import { itemIdFromHash, listIdFromHash, routeFromHash } from './route';
   import TabBar from './TabBar.svelte';
@@ -59,6 +60,7 @@
   } = $props();
 
   let assistantOpen = $state(false);
+  let assistantClosings = $state(0);
 
   const backup = untrack(() => new BackupState({ repo: backupRepo, share, clock }));
 
@@ -92,6 +94,12 @@
       <Lists repo={listsRepo} />
     {/key}
     <ShareApp url={appUrl} {share} />
+    {#if push}
+      <!-- Re-made when the Assistant sheet closes, so pairing or Remove shows at once (s31). -->
+      {#key assistantClosings}
+        <NotificationsSection repo={assistantRepo} {push} />
+      {/key}
+    {/if}
     <BackupSection {backup} />
     <VersionLine onHold={() => (assistantOpen = true)} />
   {:else if route === 'list'}
@@ -118,7 +126,15 @@
 </main>
 
 {#if assistantOpen}
-  <AssistantSheet repo={assistantRepo} {runSync} {push} onClose={() => (assistantOpen = false)} />
+  <AssistantSheet
+    repo={assistantRepo}
+    {runSync}
+    {push}
+    onClose={() => {
+      assistantOpen = false;
+      assistantClosings++;
+    }}
+  />
 {/if}
 
 <TabBar current={route === 'item' ? routeFromHash(backHref) : route} />
