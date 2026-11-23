@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Request } from '@playwright/test';
 
 const ASSISTANT = 'https://app.80dventures.com';
@@ -87,7 +88,23 @@ test('pairing pulls the to-do into the matching list and sends nothing of mine',
   await sheet.getByRole('button', { name: 'Pair' }).click();
   await expect(sheet.getByText('Connected to your assistant')).toBeVisible();
   await expect.poll(() => acked).toEqual(['t1']);
+  await expect(sheet.getByRole('heading', { name: 'Notifications' })).toHaveCount(0);
   await sheet.getByRole('button', { name: 'Close' }).click();
+
+  // Pairing shows the Notifications section on the Lists tab, above Backup (s31), and it passes
+  // axe in both themes. Playwright's WebKit has no PushManager, so there it shows the
+  // open-from-Home-Screen hint instead of the button.
+  const notifications = page.getByRole('region', { name: 'Notifications' });
+  await expect(notifications).toBeVisible();
+  if (browserName === 'chromium') {
+    await expect(notifications.getByRole('button', { name: 'Turn on notifications' })).toBeVisible();
+  }
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme });
+    const axe = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze();
+    expect(axe.violations.map((v) => `${colorScheme}: ${v.id}`)).toEqual([]);
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
 
   await page.getByRole('link', { name: /Work/ }).first().click();
   await expect(page.getByText('Pay Xcel bill')).toHaveCount(1);

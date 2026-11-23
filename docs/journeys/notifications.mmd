@@ -1,14 +1,14 @@
 flowchart TD
-  S1[J1.S1 Open Habit Tracker from the Home Screen] --> S2[J1.S2 Hold the version line on the Lists tab for 3 seconds]
-  S2 --> S3[J1.S3 Assistant sheet shows Connected and a Notifications section]
+  S1[J1.S1 Open Habit Tracker from the Home Screen] --> S2[J1.S2 Open the Lists tab]
+  S2 --> S3[J1.S3 A Notifications section shows above Backup on a paired phone]
   S3 --> S4[J1.S4 Tap Turn on notifications]
   S4 --> S5{J1.S5 iPhone asks to allow notifications}
-  S5 -->|Allow| S6[J1.S6 Sheet says On: new to-dos from your assistant and a 7:00 am summary]
-  S5 -->|Don't Allow| S7[J1.S7 Sheet says notifications are blocked and where to turn them on in Settings]
+  S5 -->|Allow| S6[J1.S6 Section says On: new to-dos from your assistant and a 7:00 am summary]
+  S5 -->|Don't Allow| S7[J1.S7 Section says notifications are blocked and where to turn them on in Settings]
   S6 --> S8[J1.S8 Close the app]
   S8 --> S9[J1.S9 Assistant sends a to-do: notification names the new to-dos]
   S8 --> S10[J1.S10 7:00 am on a day with something due: summary lists due and overdue to-dos]
   S9 --> S11[J1.S11 Tap the notification]
   S10 --> S11
   S11 --> S12[J1.S12 Habit Tracker opens on Today with the to-dos synced]
-  S6 --> S13[J1.S13 Later: tap Turn off notifications and nothing more arrives]
+  S6 --> S13[J1.S13 Later: tap Turn off notifications on the Lists tab and nothing more arrives]

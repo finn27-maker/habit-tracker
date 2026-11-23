@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review: As a habit tracker owner, I need the Notifications switch on the Lists tab so that I can turn notifications on or off without the hidden hold - Memento</title>
+<style>
+:root { --bg:#fbfaf7; --fg:#1d1f23; --muted:#5b616b; --line:#d9d6cf; --card:#ffffff; --accent:#2f5d8a; --warn:#8a5a00; --good:#2e6b34; --bad:#a3262a; }
+@media (prefers-color-scheme: dark) { :root { --bg:#16181c; --fg:#e8e6e1; --muted:#a0a6b0; --line:#33373e; --card:#1d2025; --accent:#8db6e0; --warn:#e3b65c; --good:#8fd19e; --bad:#f19a9a; } }
+body { background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, sans-serif; margin:0; padding-block:32px; padding-inline:16px; }
+main { max-width:80rem; margin:0 auto; display:grid; gap:28px; }
+h1, h2, h3 { text-wrap:balance; margin:0; }
+h1 { font-size:1.6rem; }
+h2 { font-size:1.2rem; border-bottom:1px solid var(--line); padding-bottom:6px; margin-bottom:12px; }
+h3 { font-size:1rem; margin-top:12px; }
+p, li { max-width:72ch; }
+.eyebrow { text-transform:uppercase; letter-spacing:.06em; font-size:.75rem; color:var(--muted); margin:0 0 6px; }
+.muted { color:var(--muted); }
+a { color:var(--accent); }
+a:focus-visible, button:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+code { font-size:.92em; background:color-mix(in srgb, var(--line) 45%, transparent); padding:1px 4px; border-radius:4px; overflow-wrap:anywhere; }
+.head { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:baseline; justify-content:space-between; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:20px; }
+.approve { border:2px solid var(--accent); }
+.gist { border-left:4px solid var(--accent); }
+.gist p { margin:6px 0 0; }
+.approve .line code { font:600 1.1rem/1.4 ui-monospace, Menlo, monospace; padding:10px 12px; border:1px dashed var(--accent); border-radius:6px; display:inline-block; }
+button { font:inherit; color:var(--fg); background:var(--card); border:1px solid var(--accent); border-radius:6px; padding:6px 14px; min-height:32px; min-width:32px; cursor:pointer; }
+.pill { display:inline-block; font-size:.78rem; padding:2px 10px; border-radius:999px; border:1px solid currentColor; color:var(--warn); }
+.pill.good { color:var(--good); }
+.pill.bad { color:var(--bad); }
+.facts { display:grid; grid-template-columns:repeat(auto-fit, minmax(14rem, 1fr)); gap:12px; margin:0; }
+.facts div { border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+.facts dt { font-size:.78rem; color:var(--muted); }
+.facts dd { margin:0; }
+.pair { display:grid; grid-template-columns:minmax(0, 3fr) minmax(0, 2fr); gap:24px; align-items:start; }
+@media (max-width: 900px) { .pair { grid-template-columns:1fr; } }
+.drawing { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; overflow-x:auto; }
+.steps { margin:0; padding-left:1.2rem; display:grid; gap:8px; }
+.screen-h { margin-top:1.5rem; }
+.wrap { overflow-x:auto; }
+table { border-collapse:collapse; width:100%; margin-top:8px; }
+caption { text-align:left; color:var(--muted); font-size:.85rem; padding-bottom:6px; }
+th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:.85rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<p class="muted"><a href="notifications.html">Back to the journey page notifications.html</a></p>
+<header class="head">
+<div>
+<p class="eyebrow">Drawings for your approval</p>
+<h1>As a habit tracker owner, I need the Notifications switch on the Lists tab so that I can turn notifications on or off without the hidden hold</h1>
+<p class="muted" data-role="ids">Slice 52505ce0 · moonshot 797b7af2 · idea 348280da</p>
+</div>
+<span class="pill warn" role="status">Waiting for your approval</span>
+</header>
+<section class="card gist" aria-labelledby="gist-h">
+<h2 id="gist-h">Gist</h2>
+<p><b>Why:</b> I can turn notifications on or off without the hidden hold.</p>
+<p><b>What you will see:</b> After this slice, a user can open the Lists tab on their paired phone and see a Notifications section beside Backup with a Turn on or Turn off notifications button, without holding the version line.</p>
+</section>
+<section class="card approve" aria-labelledby="approve-h">
+<h2 id="approve-h">To approve</h2>
+<p>Post this line in your own chat with the agent:</p>
+<p class="line"><code id="approval-line">approve design 29ac2cb8</code></p>
+<p><button type="button" id="copy-line">Copy the approval line</button> <span id="copy-status" aria-live="polite"></span></p>
+<p class="muted">The line approves exactly the versions on this page: journey Turn on notifications and act on one v2. A later change to a journey needs a new approval.</p>
+<p class="muted">To ask for a change, write your comment in the chat. The agent revises the files and Memento writes this page again.</p>
+</section>
+<section aria-labelledby="facts-h">
+<h2 id="facts-h">What this approval covers</h2>
+<dl class="facts">
+<div><dt>Journey file (Habit Tracker owner on their iPhone)</dt><dd><code>docs/journeys/notifications.mmd</code></dd></div>
+<div><dt>Journey version and hash</dt><dd>v2 · <code>e2520d7c6194be3b3bd5dd0a32fd44f825400b849f71ac0c09a794e484e7b778</code> <span class="pill good">matches the file</span></dd></div>
+<div><dt>Recorded by</dt><dd>agent, 2026-11-23T16:32:59Z</dd></div>
+<div><dt>Approval (Habit Tracker owner on their iPhone)</dt><dd>Waiting for your approval</dd></div>
+</dl>
+</section>
+<section aria-labelledby="journey-1-h" data-role="journey">
+<h2 id="journey-1-h">Journey: Turn on notifications and act on one (Habit Tracker owner on their iPhone)</h2>
+<p><span class="pill warn" data-role="journey-status">Waiting for your approval</span></p>
+<div class="pair">
+<div class="drawing" id="drawing-1" role="img" aria-label="Journey Turn on notifications and act on one version 2" data-source="source-1"><p class="muted">The drawing needs the network. The step list is the full journey.</p></div>
+<script type="application/json" id="source-1">"flowchart TD\n  S1[J1.S1 Open Habit Tracker from the Home Screen] --\u003E S2[J1.S2 Open the Lists tab]\n  S2 --\u003E S3[J1.S3 A Notifications section shows above Backup on a paired phone]\n  S3 --\u003E S4[J1.S4 Tap Turn on notifications]\n  S4 --\u003E S5{J1.S5 iPhone asks to allow notifications}\n  S5 --\u003E|Allow| S6[J1.S6 Section says On: new to-dos from your assistant and a 7:00 am summary]\n  S5 --\u003E|Don\u0027t Allow| S7[J1.S7 Section says notifications are blocked and where to turn them on in Settings]\n  S6 --\u003E S8[J1.S8 Close the app]\n  S8 --\u003E S9[J1.S9 Assistant sends a to-do: notification names the new to-dos]\n  S8 --\u003E S10[J1.S10 7:00 am on a day with something due: summary lists due and overdue to-dos]\n  S9 --\u003E S11[J1.S11 Tap the notification]\n  S10 --\u003E S11\n  S11 --\u003E S12[J1.S12 Habit Tracker opens on Today with the to-dos synced]\n  S6 --\u003E S13[J1.S13 Later: tap Turn off notifications on the Lists tab and nothing more arrives]"</script>
+<ol class="steps">
+<li><b>J1.S1</b> <span dir="auto">Open Habit Tracker from the Home Screen</span></li>
+<li><b>J1.S2</b> <span dir="auto">Open the Lists tab</span></li>
+<li><b>J1.S3</b> <span dir="auto">A Notifications section shows above Backup on a paired phone</span></li>
+<li><b>J1.S4</b> <span dir="auto">Tap Turn on notifications</span></li>
+<li><b>J1.S5</b> <span dir="auto">iPhone asks to allow notifications</span></li>
+<li><b>J1.S6</b> <span dir="auto">Section says On: new to-dos from your assistant and a 7:00 am summary</span></li>
+<li><b>J1.S7</b> <span dir="auto">Section says notifications are blocked and where to turn them on in Settings</span></li>
+<li><b>J1.S8</b> <span dir="auto">Close the app</span></li>
+<li><b>J1.S9</b> <span dir="auto">Assistant sends a to-do: notification names the new to-dos</span></li>
+<li><b>J1.S10</b> <span dir="auto">7:00 am on a day with something due: summary lists due and overdue to-dos</span></li>
+<li><b>J1.S11</b> <span dir="auto">Tap the notification</span></li>
+<li><b>J1.S12</b> <span dir="auto">Habit Tracker opens on Today with the to-dos synced</span></li>
+<li><b>J1.S13</b> <span dir="auto">Later: tap Turn off notifications on the Lists tab and nothing more arrives</span></li>
+</ol>
+</div>
+</section>
+<section aria-labelledby="screens-h">
+<h2 id="screens-h">Screens</h2>
+<p class="muted" data-role="no-screens">No screen is recorded for this idea.</p>
+</section>
+<section aria-labelledby="hist-h">
+<h2 id="hist-h">History</h2>
+<h3>Turn on notifications and act on one (Habit Tracker owner on their iPhone)</h3>
+<ul>
+<li>2026-11-21T23:30:44Z · v1 · 5196477d · recorded</li>
+<li>2026-11-23T16:32:59Z · v2 · e2520d7c · recorded and bound to this slice</li>
+</ul>
+</section>
+</main>
+<script type="module">
+const line = document.getElementById('approval-line');
+const status = document.getElementById('copy-status');
+document.getElementById('copy-line').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(line.textContent);
+    status.textContent = 'Copied.';
+  } catch {
+    status.textContent = 'Copy failed. Select the line and copy it.';
+  }
+});
+try {
+  const { default: mermaid } = await import('https://cdn.jsdelivr.net/npm/mermaid@11.17.2/dist/mermaid.esm.min.mjs');
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: dark ? 'dark' : 'neutral' });
+  for (const box of document.querySelectorAll('[data-source]')) {
+    const source = JSON.parse(document.getElementById(box.dataset.source).textContent);
+    const { svg } = await mermaid.render(box.id + '-svg', source);
+    box.innerHTML = svg;
+    box.firstElementChild.setAttribute('aria-hidden', 'true');
+  }
+} catch {
+  document.body.dataset.drawing = 'unavailable';
+}
+</script>
+</body>
+</html>
